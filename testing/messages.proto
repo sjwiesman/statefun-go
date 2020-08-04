@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option go_package = "statefun";
+
+message Invoke {
+}
+
+message OtherMessage {}
+
+message Counter {
+  int32 count = 1;
+}
+
+message Greeting {
+  string greeting = 1;
+}
