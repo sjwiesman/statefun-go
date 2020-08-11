@@ -25,5 +25,5 @@ import (
 type StatefulFunction interface {
 
 	// Invoke this function with the given input.
-	Invoke(message *any.Any, ctx InvocationContext) error
+	Invoke(ctx StatefulFunctionIO, message *any.Any) error
 }

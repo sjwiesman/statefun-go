@@ -19,7 +19,7 @@ func randToken(n int) string {
 
 type CounterFunction struct{}
 
-func (c CounterFunction) Invoke(_ *any.Any, ctx statefun.InvocationContext) error {
+func (c CounterFunction) Invoke(ctx statefun.StatefulFunctionIO, message *any.Any) error {
 	var count InvokeCount
 	if err := ctx.GetAndUnpack("invoke_count", &count); err != nil {
 		return fmt.Errorf("unable to deserialize invoke_count %w", err)
@@ -45,7 +45,7 @@ func (c CounterFunction) Invoke(_ *any.Any, ctx statefun.InvocationContext) erro
 	return ctx.SendAndPack(target, response)
 }
 
-func ForwardFunction(message *any.Any, ctx statefun.InvocationContext) error {
+func ForwardFunction(message *any.Any, ctx statefun.StatefulFunctionIO) error {
 	egress := statefun.EgressIdentifier{
 		EgressNamespace: "org.apache.flink.statefun.e2e.remote",
 		EgressType:      "invoke-results",

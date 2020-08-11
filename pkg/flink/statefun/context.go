@@ -15,7 +15,7 @@ import (
 // (including itself) and to send messages to egresses. Additionally, it supports
 // reading and writing persisted state values with exactly-once guarantees provided
 // by the runtime.
-type InvocationContext interface {
+type StatefulFunctionIO interface {
 	// Self returns the address of the current
 	// function instance under evaluation
 	Self() *Address

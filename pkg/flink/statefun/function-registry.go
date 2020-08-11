@@ -20,17 +20,17 @@ type FunctionRegistry interface {
 	RegisterFunction(funcType FunctionType, function StatefulFunction)
 
 	// Registers a function pointer as a StatefulFunction under a FunctionType.
-	RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx InvocationContext) error)
+	RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx StatefulFunctionIO) error)
 
 	// Executes a batch request from the runtime.
 	Process(request *ToFunction) (*FromFunction, error)
 }
 
 type statefulFunctionPointer struct {
-	f func(message *any.Any, ctx InvocationContext) error
+	f func(message *any.Any, ctx StatefulFunctionIO) error
 }
 
-func (pointer *statefulFunctionPointer) Invoke(message *any.Any, ctx InvocationContext) error {
+func (pointer *statefulFunctionPointer) Invoke(ctx StatefulFunctionIO, message *any.Any) error {
 	return pointer.f(message, ctx)
 }
 
@@ -48,7 +48,7 @@ func (functions *functions) RegisterFunction(funcType FunctionType, function Sta
 	functions.module[funcType] = function
 }
 
-func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx InvocationContext) error) {
+func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx StatefulFunctionIO) error) {
 	functions.module[funcType] = &statefulFunctionPointer{
 		f: function,
 	}
@@ -74,7 +74,7 @@ func (functions functions) Process(request *ToFunction) (*FromFunction, error) {
 
 	for _, invocation := range invocations.Invocations {
 		ctx.caller = invocation.Caller
-		err := function.Invoke((*invocation).Argument, &ctx)
+		err := function.Invoke(&ctx, (*invocation).Argument)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute function %s/%s\n%w", ctx.self.Namespace, ctx.self.Type, err)
 		}

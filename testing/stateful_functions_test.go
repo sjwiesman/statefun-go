@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/anypb"
 	"statefun-go/pkg/flink/statefun"
 	"testing"
 	"time"
@@ -117,7 +118,7 @@ func TestFunctionHandler(t *testing.T) {
 
 type Greeter struct{}
 
-func (f Greeter) Invoke(message *any.Any, ctx statefun.InvocationContext) error {
+func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, message *anypb.Any) error {
 	var count Counter
 	if err := ctx.GetAndUnpack("counter", &count); err != nil {
 		return err
