@@ -26,11 +26,11 @@ type FunctionRegistry interface {
 	Process(request *ToFunction) (*FromFunction, error)
 }
 
-type statefulFunctionPointer struct {
+type pointer struct {
 	f func(message *any.Any, ctx StatefulFunctionIO) error
 }
 
-func (pointer *statefulFunctionPointer) Invoke(ctx StatefulFunctionIO, message *any.Any) error {
+func (pointer *pointer) Invoke(ctx StatefulFunctionIO, message *any.Any) error {
 	return pointer.f(message, ctx)
 }
 
@@ -38,7 +38,7 @@ type functions struct {
 	module map[FunctionType]StatefulFunction
 }
 
-func NewFunctionRegistery() FunctionRegistry {
+func NewFunctionRegistry() FunctionRegistry {
 	return &functions{
 		module: make(map[FunctionType]StatefulFunction),
 	}
@@ -49,7 +49,7 @@ func (functions *functions) RegisterFunction(funcType FunctionType, function Sta
 }
 
 func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx StatefulFunctionIO) error) {
-	functions.module[funcType] = &statefulFunctionPointer{
+	functions.module[funcType] = &pointer{
 		f: function,
 	}
 }

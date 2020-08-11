@@ -60,8 +60,8 @@ func ForwardFunction(message *any.Any, ctx statefun.StatefulFunctionIO) error {
 }
 
 func main() {
-	functions := statefun.NewFunctionRegistery()
-	functions.StatefulFunction(statefun.FunctionType{
+	functions := statefun.NewFunctionRegistry()
+	functions.RegisterFunction(statefun.FunctionType{
 		Namespace: "org.apache.flink.statefun.e2e.remote",
 		Type:      "counter",
 	}, CounterFunction{})

@@ -69,7 +69,7 @@ func TestFunctionHandler(t *testing.T) {
 		},
 	}
 
-	functions := statefun.NewFunctionRegistery()
+	functions := statefun.NewFunctionRegistry()
 
 	functions.RegisterFunction(statefun.FunctionType{
 		Namespace: "remote",
