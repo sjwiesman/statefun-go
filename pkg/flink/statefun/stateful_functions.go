@@ -18,27 +18,34 @@ func (pointer *statefulFunctionPointer) Invoke(message *any.Any, ctx *Invocation
 	return pointer.f(message, ctx)
 }
 
-type StatefulFunctions struct {
+type StatefulFunctions interface {
+	StatefulFunction(funcType FunctionType, function StatefulFunction)
+	StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx *InvocationContext) error)
+	Process(request *ToFunction) (*FromFunction, error)
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
+}
+
+type functions struct {
 	module map[FunctionType]StatefulFunction
 }
 
 func NewStatefulFunctions() StatefulFunctions {
-	return StatefulFunctions{
+	return &functions{
 		module: make(map[FunctionType]StatefulFunction),
 	}
 }
 
-func (functions *StatefulFunctions) StatefulFunction(funcType FunctionType, function StatefulFunction) {
+func (functions *functions) StatefulFunction(funcType FunctionType, function StatefulFunction) {
 	functions.module[funcType] = function
 }
 
-func (functions *StatefulFunctions) StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx *InvocationContext) error) {
+func (functions *functions) StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx *InvocationContext) error) {
 	functions.module[funcType] = &statefulFunctionPointer{
 		f: function,
 	}
 }
 
-func (functions StatefulFunctions) Process(request *ToFunction) (*FromFunction, error) {
+func (functions functions) Process(request *ToFunction) (*FromFunction, error) {
 	invocations := request.GetInvocation()
 	if invocations == nil {
 		return nil, errors.New("missing invocations for batch")
@@ -67,7 +74,7 @@ func (functions StatefulFunctions) Process(request *ToFunction) (*FromFunction, 
 	return ctx.fromFunction()
 }
 
-func (functions StatefulFunctions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return

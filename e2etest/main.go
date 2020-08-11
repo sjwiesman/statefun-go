@@ -60,7 +60,7 @@ func ForwardFunction(message *any.Any, ctx *statefun.InvocationContext) error {
 }
 
 func main() {
-	functions := statefun.StatefulFunctions{}
+	functions := statefun.NewStatefulFunctions()
 	functions.StatefulFunction(statefun.FunctionType{
 		Namespace: "org.apache.flink.statefun.e2e.remote",
 		Type:      "counter",
