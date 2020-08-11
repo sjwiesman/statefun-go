@@ -19,10 +19,10 @@ func (pointer *statefulFunctionPointer) Invoke(message *any.Any, ctx *Invocation
 }
 
 type StatefulFunctions interface {
+	http.Handler
 	StatefulFunction(funcType FunctionType, function StatefulFunction)
 	StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx *InvocationContext) error)
 	Process(request *ToFunction) (*FromFunction, error)
-	ServeHTTP(w http.ResponseWriter, req *http.Request)
 }
 
 type functions struct {
