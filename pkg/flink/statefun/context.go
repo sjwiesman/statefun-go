@@ -77,12 +77,12 @@ type InvocationContext interface {
 	// This method marshals the given message into an anypb.Any.
 	SendAfterAndPack(target *Address, duration time.Duration, message proto.Message) error
 
-	// Sends an output to an Egress.
-	SendEgress(egress Egress, message *any.Any) error
+	// Sends an output to an EgressIdentifier.
+	SendEgress(egress EgressIdentifier, message *any.Any) error
 
-	// Sends an output to an Egress.
+	// Sends an output to an EgressIdentifier.
 	// This method marshals the given message into an anypb.Any.
-	SendEgressAndPack(egress Egress, message proto.Message) error
+	SendEgressAndPack(egress EgressIdentifier, message proto.Message) error
 }
 
 // Tracks the state changes
@@ -273,7 +273,7 @@ func (ctx *context) SendAfterAndPack(target *Address, duration time.Duration, me
 	return ctx.SendAfter(target, duration, packedMessage)
 }
 
-func (ctx *context) SendEgress(egress Egress, message *any.Any) error {
+func (ctx *context) SendEgress(egress EgressIdentifier, message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to egress")
 	}
@@ -288,7 +288,7 @@ func (ctx *context) SendEgress(egress Egress, message *any.Any) error {
 	return nil
 }
 
-func (ctx *context) SendEgressAndPack(egress Egress, message proto.Message) error {
+func (ctx *context) SendEgressAndPack(egress EgressIdentifier, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to egress")
 	}

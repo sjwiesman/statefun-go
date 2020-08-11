@@ -10,6 +10,22 @@ import (
 	"net/http"
 )
 
+// Keeps a mapping from FunctionType to stateful functions.
+// Use this together with an http endpoint to serve
+// StatefulFunction implementations.
+type FunctionRegistry interface {
+	http.Handler
+
+	// Register a StatefulFunction under a FunctionType.
+	RegisterFunction(funcType FunctionType, function StatefulFunction)
+
+	// Registers a function pointer as a StatefulFunction under a FunctionType.
+	RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx InvocationContext) error)
+
+	// Executes a batch request from the runtime.
+	Process(request *ToFunction) (*FromFunction, error)
+}
+
 type statefulFunctionPointer struct {
 	f func(message *any.Any, ctx InvocationContext) error
 }
@@ -18,28 +34,21 @@ func (pointer *statefulFunctionPointer) Invoke(message *any.Any, ctx InvocationC
 	return pointer.f(message, ctx)
 }
 
-type StatefulFunctions interface {
-	http.Handler
-	StatefulFunction(funcType FunctionType, function StatefulFunction)
-	StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx InvocationContext) error)
-	Process(request *ToFunction) (*FromFunction, error)
-}
-
 type functions struct {
 	module map[FunctionType]StatefulFunction
 }
 
-func NewStatefulFunctions() StatefulFunctions {
+func NewFunctionRegistery() FunctionRegistry {
 	return &functions{
 		module: make(map[FunctionType]StatefulFunction),
 	}
 }
 
-func (functions *functions) StatefulFunction(funcType FunctionType, function StatefulFunction) {
+func (functions *functions) RegisterFunction(funcType FunctionType, function StatefulFunction) {
 	functions.module[funcType] = function
 }
 
-func (functions *functions) StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx InvocationContext) error) {
+func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx InvocationContext) error) {
 	functions.module[funcType] = &statefulFunctionPointer{
 		f: function,
 	}

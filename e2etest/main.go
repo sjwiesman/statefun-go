@@ -19,7 +19,7 @@ func randToken(n int) string {
 
 type CounterFunction struct{}
 
-func (c CounterFunction) Invoke(_ *any.Any, ctx *statefun.context) error {
+func (c CounterFunction) Invoke(_ *any.Any, ctx statefun.InvocationContext) error {
 	var count InvokeCount
 	if err := ctx.GetAndUnpack("invoke_count", &count); err != nil {
 		return fmt.Errorf("unable to deserialize invoke_count %w", err)
@@ -45,8 +45,8 @@ func (c CounterFunction) Invoke(_ *any.Any, ctx *statefun.context) error {
 	return ctx.SendAndPack(target, response)
 }
 
-func ForwardFunction(message *any.Any, ctx *statefun.context) error {
-	egress := statefun.Egress{
+func ForwardFunction(message *any.Any, ctx statefun.InvocationContext) error {
+	egress := statefun.EgressIdentifier{
 		EgressNamespace: "org.apache.flink.statefun.e2e.remote",
 		EgressType:      "invoke-results",
 	}
@@ -60,13 +60,13 @@ func ForwardFunction(message *any.Any, ctx *statefun.context) error {
 }
 
 func main() {
-	functions := statefun.NewStatefulFunctions()
+	functions := statefun.NewFunctionRegistery()
 	functions.StatefulFunction(statefun.FunctionType{
 		Namespace: "org.apache.flink.statefun.e2e.remote",
 		Type:      "counter",
 	}, CounterFunction{})
 
-	functions.StatefulFunctionPointer(statefun.FunctionType{
+	functions.RegisterFunctionPointer(statefun.FunctionType{
 		Namespace: "org.apache.flink.statefun.e2e.remote",
 		Type:      "forward-function",
 	}, ForwardFunction)

@@ -16,7 +16,7 @@ var caller = statefun.Address{
 	Id:        "id2",
 }
 
-var egress = statefun.Egress{"test", "egress"}
+var egress = statefun.EgressIdentifier{"test", "egress"}
 
 var serializedGreeting any.Any
 
@@ -68,9 +68,9 @@ func TestFunctionHandler(t *testing.T) {
 		},
 	}
 
-	functions := statefun.NewStatefulFunctions()
+	functions := statefun.NewFunctionRegistery()
 
-	functions.StatefulFunction(statefun.FunctionType{
+	functions.RegisterFunction(statefun.FunctionType{
 		Namespace: "remote",
 		Type:      "greeter",
 	}, Greeter{})
