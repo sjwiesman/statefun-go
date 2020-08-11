@@ -5,5 +5,5 @@ import (
 )
 
 type StatefulFunction interface {
-	Invoke(message *any.Any, ctx *Context) error
+	Invoke(message *any.Any, ctx *InvocationContext) error
 }

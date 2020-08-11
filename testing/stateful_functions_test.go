@@ -117,7 +117,7 @@ func TestFunctionHandler(t *testing.T) {
 
 type Greeter struct{}
 
-func (f Greeter) Invoke(message *any.Any, ctx *statefun.Context) error {
+func (f Greeter) Invoke(message *any.Any, ctx *statefun.InvocationContext) error {
 	var count Counter
 	if err := ctx.GetAndUnpack("counter", &count); err != nil {
 		return err

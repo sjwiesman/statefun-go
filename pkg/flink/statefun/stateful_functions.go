@@ -11,10 +11,10 @@ import (
 )
 
 type statefulFunctionPointer struct {
-	f func(message *any.Any, ctx *Context) error
+	f func(message *any.Any, ctx *InvocationContext) error
 }
 
-func (pointer *statefulFunctionPointer) Invoke(message *any.Any, ctx *Context) error {
+func (pointer *statefulFunctionPointer) Invoke(message *any.Any, ctx *InvocationContext) error {
 	return pointer.f(message, ctx)
 }
 
@@ -32,7 +32,7 @@ func (functions *StatefulFunctions) StatefulFunction(funcType FunctionType, func
 	functions.module[funcType] = function
 }
 
-func (functions *StatefulFunctions) StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx *Context) error) {
+func (functions *StatefulFunctions) StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx *InvocationContext) error) {
 	functions.module[funcType] = &statefulFunctionPointer{
 		f: function,
 	}

@@ -16,10 +16,10 @@ type state struct {
 	value   *any.Any
 }
 
-// Context is the main effect tracker of the function invocation
+// InvocationContext is the main effect tracker of the function invocation
 // It tracks all responses that will be sent back to the
 // Flink runtime after the full batch has been executed.
-type Context struct {
+type InvocationContext struct {
 	self              *Address
 	caller            *Address
 	states            map[string]*state
@@ -30,8 +30,8 @@ type Context struct {
 
 // Create a new context based on the target function
 // and set of initial states.
-func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) Context {
-	ctx := Context{
+func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) InvocationContext {
+	ctx := InvocationContext{
 		self:              self,
 		caller:            nil,
 		states:            map[string]*state{},
@@ -58,20 +58,20 @@ func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) Con
 
 // Self returns the address of the current
 // function instance under evaluation
-func (ctx *Context) Self() *Address {
+func (ctx *InvocationContext) Self() *Address {
 	return ctx.self
 }
 
 // Caller returns the address of the caller function.
 // The caller may be nil if the message
 // was sent directly from an ingress
-func (ctx *Context) Caller() *Address {
+func (ctx *InvocationContext) Caller() *Address {
 	return ctx.caller
 }
 
 // Get returns the current value of a state accessed by name or an
 // error if the state does not exist.
-func (ctx *Context) Get(name string) (*any.Any, error) {
+func (ctx *InvocationContext) Get(name string) (*any.Any, error) {
 	state := ctx.states[name]
 	if state == nil {
 		return nil, errors.New(fmt.Sprintf("Unknown state name %s", name))
@@ -84,7 +84,7 @@ func (ctx *Context) Get(name string) (*any.Any, error) {
 // unmarshals the encoded value contained into the provided message state.
 // It returns an error if the target message does not match the type
 // in the Any message or if an unmarshal error occurs.
-func (ctx *Context) GetAndUnpack(name string, state proto.Message) error {
+func (ctx *InvocationContext) GetAndUnpack(name string, state proto.Message) error {
 	packedState := ctx.states[name]
 	if packedState == nil {
 		return errors.New(fmt.Sprintf("Unknown state name %s", name))
@@ -104,7 +104,7 @@ func (ctx *Context) GetAndUnpack(name string, state proto.Message) error {
 
 // Set stores the value under the given name in state.
 // It will return an error if the state does not exist.
-func (ctx *Context) Set(name string, value *any.Any) error {
+func (ctx *InvocationContext) Set(name string, value *any.Any) error {
 	state := ctx.states[name]
 	if state == nil {
 		return errors.New(fmt.Sprintf("Unknown state name %s", name))
@@ -119,7 +119,7 @@ func (ctx *Context) Set(name string, value *any.Any) error {
 
 // SetAndPack stores the value under the given name in state and
 // marshals the given message m into an anypb.Any message.
-func (ctx *Context) SetAndPack(name string, value proto.Message) error {
+func (ctx *InvocationContext) SetAndPack(name string, value proto.Message) error {
 	if value == nil {
 		return ctx.Set(name, nil)
 	}
@@ -142,11 +142,11 @@ func (ctx *Context) SetAndPack(name string, value proto.Message) error {
 }
 
 // Clear deletes the state registered under the name
-func (ctx *Context) Clear(name string) {
+func (ctx *InvocationContext) Clear(name string) {
 	_ = ctx.Set(name, nil)
 }
 
-func (ctx *Context) Send(target *Address, message *any.Any) error {
+func (ctx *InvocationContext) Send(target *Address, message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -160,7 +160,7 @@ func (ctx *Context) Send(target *Address, message *any.Any) error {
 	return nil
 }
 
-func (ctx *Context) SendAndPack(target *Address, message proto.Message) error {
+func (ctx *InvocationContext) SendAndPack(target *Address, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -173,7 +173,7 @@ func (ctx *Context) SendAndPack(target *Address, message proto.Message) error {
 	return ctx.Send(target, packedState)
 }
 
-func (ctx *Context) Reply(message *any.Any) error {
+func (ctx *InvocationContext) Reply(message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -181,11 +181,11 @@ func (ctx *Context) Reply(message *any.Any) error {
 	return ctx.Send(ctx.caller, message)
 }
 
-func (ctx *Context) ReplyAndPack(message proto.Message) error {
+func (ctx *InvocationContext) ReplyAndPack(message proto.Message) error {
 	return ctx.SendAndPack(ctx.caller, message)
 }
 
-func (ctx *Context) SendAfter(target *Address, duration time.Duration, message *any.Any) error {
+func (ctx *InvocationContext) SendAfter(target *Address, duration time.Duration, message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -200,7 +200,7 @@ func (ctx *Context) SendAfter(target *Address, duration time.Duration, message *
 	return nil
 }
 
-func (ctx *Context) SendAfterAndPack(target *Address, duration time.Duration, message proto.Message) error {
+func (ctx *InvocationContext) SendAfterAndPack(target *Address, duration time.Duration, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -213,7 +213,7 @@ func (ctx *Context) SendAfterAndPack(target *Address, duration time.Duration, me
 	return ctx.SendAfter(target, duration, packedMessage)
 }
 
-func (ctx *Context) SendEgress(egress Egress, message *any.Any) error {
+func (ctx *InvocationContext) SendEgress(egress Egress, message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to egress")
 	}
@@ -228,7 +228,7 @@ func (ctx *Context) SendEgress(egress Egress, message *any.Any) error {
 	return nil
 }
 
-func (ctx *Context) SendEgressAndPack(egress Egress, message proto.Message) error {
+func (ctx *InvocationContext) SendEgressAndPack(egress Egress, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to egress")
 	}
@@ -241,7 +241,7 @@ func (ctx *Context) SendEgressAndPack(egress Egress, message proto.Message) erro
 	return ctx.SendEgress(egress, packedMessage)
 }
 
-func (ctx *Context) fromFunction() (*FromFunction, error) {
+func (ctx *InvocationContext) fromFunction() (*FromFunction, error) {
 	var mutations []*FromFunction_PersistedValueMutation
 	for name, state := range ctx.states {
 		if !state.updated {
