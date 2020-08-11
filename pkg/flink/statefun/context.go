@@ -9,6 +9,82 @@ import (
 	"time"
 )
 
+// Provides the context for a single StatefulFunction instance.
+// The invocation's context may be used to obtain the {@link Address} of itself or the calling
+// function (if the function was invoked by another function), or used to invoke other functions
+// (including itself) and to send messages to egresses. Additionally, it supports
+// reading and writing persisted state values with exactly-once guarantees provided
+// by the runtime.
+type InvocationContext interface {
+	// Self returns the address of the current
+	// function instance under evaluation
+	Self() *Address
+
+	// Caller returns the address of the caller function.
+	// The caller may be nil if the message
+	// was sent directly from an ingress
+	Caller() *Address
+
+	// Get returns the current value of a state accessed by name or an
+	// error if the state does not exist.
+	Get(name string) (*any.Any, error)
+
+	// GetAndUnpack retrieves the state for the given name and
+	// unmarshals the encoded value contained into the provided message state.
+	// It returns an error if the target message does not match the type
+	// in the Any message or if an unmarshal error occurs.
+	GetAndUnpack(name string, state proto.Message) error
+
+	// Set stores the value under the given name in state.
+	// It will return an error if the state does not exist.
+	Set(name string, value *any.Any) error
+
+	// SetAndPack stores the value under the given name in state and
+	// marshals the given message m into an anypb.Any message.
+	SetAndPack(name string, value proto.Message) error
+
+	// Clear deletes the state registered under the name
+	Clear(name string)
+
+	// Invokes another function with an input, identified by the target function's Address.
+	Send(target *Address, message *any.Any) error
+
+	// Invokes another function with an input, identified by the target function's Address
+	// and marshals the given message into an anypb.Any.
+	SendAndPack(target *Address, message proto.Message) error
+
+	// Invokes the calling function of the current invocation under context. This has the same effect
+	// as calling Send with the address obtained from Caller, and
+	// will not work if the current function was not invoked by another function.
+	Reply(message *any.Any) error
+
+	// Invokes the calling function of the current invocation under context. This has the same effect
+	// as calling Send with the address obtained from Caller, and
+	// will not work if the current function was not invoked by another function.
+	// This method marshals the given message into an anypb.Any.
+	ReplyAndPack(message proto.Message) error
+
+	// Invokes another function with an input, identified by the target function's
+	// FunctionType and unique id after a specified delay. This method is durable
+	// and as such, the message will not be lost if the system experiences
+	// downtime between when the message is sent and the end of the duration.
+	SendAfter(target *Address, duration time.Duration, message *any.Any) error
+
+	// Invokes another function with an input, identified by the target function's
+	// FunctionType and unique id after a specified delay. This method is durable
+	// and as such, the message will not be lost if the system experiences
+	// downtime between when the message is sent and the end of the duration.
+	// This method marshals the given message into an anypb.Any.
+	SendAfterAndPack(target *Address, duration time.Duration, message proto.Message) error
+
+	// Sends an output to an Egress.
+	SendEgress(egress Egress, message *any.Any) error
+
+	// Sends an output to an Egress.
+	// This method marshals the given message into an anypb.Any.
+	SendEgressAndPack(egress Egress, message proto.Message) error
+}
+
 // Tracks the state changes
 // of the function invocations
 type state struct {
@@ -16,10 +92,10 @@ type state struct {
 	value   *any.Any
 }
 
-// InvocationContext is the main effect tracker of the function invocation
+// context is the main effect tracker of the function invocation
 // It tracks all responses that will be sent back to the
 // Flink runtime after the full batch has been executed.
-type InvocationContext struct {
+type context struct {
 	self              *Address
 	caller            *Address
 	states            map[string]*state
@@ -30,8 +106,8 @@ type InvocationContext struct {
 
 // Create a new context based on the target function
 // and set of initial states.
-func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) InvocationContext {
-	ctx := InvocationContext{
+func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) context {
+	ctx := context{
 		self:              self,
 		caller:            nil,
 		states:            map[string]*state{},
@@ -56,22 +132,15 @@ func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) Inv
 	return ctx
 }
 
-// Self returns the address of the current
-// function instance under evaluation
-func (ctx *InvocationContext) Self() *Address {
+func (ctx *context) Self() *Address {
 	return ctx.self
 }
 
-// Caller returns the address of the caller function.
-// The caller may be nil if the message
-// was sent directly from an ingress
-func (ctx *InvocationContext) Caller() *Address {
+func (ctx *context) Caller() *Address {
 	return ctx.caller
 }
 
-// Get returns the current value of a state accessed by name or an
-// error if the state does not exist.
-func (ctx *InvocationContext) Get(name string) (*any.Any, error) {
+func (ctx *context) Get(name string) (*any.Any, error) {
 	state := ctx.states[name]
 	if state == nil {
 		return nil, errors.New(fmt.Sprintf("Unknown state name %s", name))
@@ -80,11 +149,7 @@ func (ctx *InvocationContext) Get(name string) (*any.Any, error) {
 	return state.value, nil
 }
 
-// GetAndUnpack retrieves the state for the given name and
-// unmarshals the encoded value contained into the provided message state.
-// It returns an error if the target message does not match the type
-// in the Any message or if an unmarshal error occurs.
-func (ctx *InvocationContext) GetAndUnpack(name string, state proto.Message) error {
+func (ctx *context) GetAndUnpack(name string, state proto.Message) error {
 	packedState := ctx.states[name]
 	if packedState == nil {
 		return errors.New(fmt.Sprintf("Unknown state name %s", name))
@@ -102,9 +167,7 @@ func (ctx *InvocationContext) GetAndUnpack(name string, state proto.Message) err
 	return nil
 }
 
-// Set stores the value under the given name in state.
-// It will return an error if the state does not exist.
-func (ctx *InvocationContext) Set(name string, value *any.Any) error {
+func (ctx *context) Set(name string, value *any.Any) error {
 	state := ctx.states[name]
 	if state == nil {
 		return errors.New(fmt.Sprintf("Unknown state name %s", name))
@@ -117,9 +180,7 @@ func (ctx *InvocationContext) Set(name string, value *any.Any) error {
 	return nil
 }
 
-// SetAndPack stores the value under the given name in state and
-// marshals the given message m into an anypb.Any message.
-func (ctx *InvocationContext) SetAndPack(name string, value proto.Message) error {
+func (ctx *context) SetAndPack(name string, value proto.Message) error {
 	if value == nil {
 		return ctx.Set(name, nil)
 	}
@@ -141,12 +202,11 @@ func (ctx *InvocationContext) SetAndPack(name string, value proto.Message) error
 	return nil
 }
 
-// Clear deletes the state registered under the name
-func (ctx *InvocationContext) Clear(name string) {
+func (ctx *context) Clear(name string) {
 	_ = ctx.Set(name, nil)
 }
 
-func (ctx *InvocationContext) Send(target *Address, message *any.Any) error {
+func (ctx *context) Send(target *Address, message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -160,7 +220,7 @@ func (ctx *InvocationContext) Send(target *Address, message *any.Any) error {
 	return nil
 }
 
-func (ctx *InvocationContext) SendAndPack(target *Address, message proto.Message) error {
+func (ctx *context) SendAndPack(target *Address, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -173,7 +233,7 @@ func (ctx *InvocationContext) SendAndPack(target *Address, message proto.Message
 	return ctx.Send(target, packedState)
 }
 
-func (ctx *InvocationContext) Reply(message *any.Any) error {
+func (ctx *context) Reply(message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -181,11 +241,11 @@ func (ctx *InvocationContext) Reply(message *any.Any) error {
 	return ctx.Send(ctx.caller, message)
 }
 
-func (ctx *InvocationContext) ReplyAndPack(message proto.Message) error {
+func (ctx *context) ReplyAndPack(message proto.Message) error {
 	return ctx.SendAndPack(ctx.caller, message)
 }
 
-func (ctx *InvocationContext) SendAfter(target *Address, duration time.Duration, message *any.Any) error {
+func (ctx *context) SendAfter(target *Address, duration time.Duration, message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -200,7 +260,7 @@ func (ctx *InvocationContext) SendAfter(target *Address, duration time.Duration,
 	return nil
 }
 
-func (ctx *InvocationContext) SendAfterAndPack(target *Address, duration time.Duration, message proto.Message) error {
+func (ctx *context) SendAfterAndPack(target *Address, duration time.Duration, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -213,7 +273,7 @@ func (ctx *InvocationContext) SendAfterAndPack(target *Address, duration time.Du
 	return ctx.SendAfter(target, duration, packedMessage)
 }
 
-func (ctx *InvocationContext) SendEgress(egress Egress, message *any.Any) error {
+func (ctx *context) SendEgress(egress Egress, message *any.Any) error {
 	if message == nil {
 		return errors.New("cannot send nil message to egress")
 	}
@@ -228,7 +288,7 @@ func (ctx *InvocationContext) SendEgress(egress Egress, message *any.Any) error 
 	return nil
 }
 
-func (ctx *InvocationContext) SendEgressAndPack(egress Egress, message proto.Message) error {
+func (ctx *context) SendEgressAndPack(egress Egress, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to egress")
 	}
@@ -241,7 +301,7 @@ func (ctx *InvocationContext) SendEgressAndPack(egress Egress, message proto.Mes
 	return ctx.SendEgress(egress, packedMessage)
 }
 
-func (ctx *InvocationContext) fromFunction() (*FromFunction, error) {
+func (ctx *context) fromFunction() (*FromFunction, error) {
 	var mutations []*FromFunction_PersistedValueMutation
 	for name, state := range ctx.states {
 		if !state.updated {

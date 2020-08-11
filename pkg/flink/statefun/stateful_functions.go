@@ -11,17 +11,17 @@ import (
 )
 
 type statefulFunctionPointer struct {
-	f func(message *any.Any, ctx *InvocationContext) error
+	f func(message *any.Any, ctx InvocationContext) error
 }
 
-func (pointer *statefulFunctionPointer) Invoke(message *any.Any, ctx *InvocationContext) error {
+func (pointer *statefulFunctionPointer) Invoke(message *any.Any, ctx InvocationContext) error {
 	return pointer.f(message, ctx)
 }
 
 type StatefulFunctions interface {
 	http.Handler
 	StatefulFunction(funcType FunctionType, function StatefulFunction)
-	StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx *InvocationContext) error)
+	StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx InvocationContext) error)
 	Process(request *ToFunction) (*FromFunction, error)
 }
 
@@ -39,7 +39,7 @@ func (functions *functions) StatefulFunction(funcType FunctionType, function Sta
 	functions.module[funcType] = function
 }
 
-func (functions *functions) StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx *InvocationContext) error) {
+func (functions *functions) StatefulFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx InvocationContext) error) {
 	functions.module[funcType] = &statefulFunctionPointer{
 		f: function,
 	}
