@@ -2,6 +2,7 @@ package testing
 
 import (
 	"bytes"
+	"errors"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
@@ -17,7 +18,7 @@ import (
 )
 
 var caller = statefun.Address{
-	Namespace: "apache",
+	Namespace: "remote",
 	Type:      "caller",
 	Id:        "id2",
 }
@@ -56,14 +57,22 @@ func TestFunctionHandler(t *testing.T) {
 				},
 				State: []*statefun.ToFunction_PersistedValue{
 					{
-						StateName:  "counter",
+						StateName:  "modified-state",
+						StateValue: stateValue,
+					},
+					{
+						StateName:  "deleted-state",
+						StateValue: stateValue,
+					},
+					{
+						StateName:  "read-only-state",
 						StateValue: stateValue,
 					},
 				},
 				Invocations: []*statefun.ToFunction_Invocation{
 					{
 						Caller: &statefun.Address{
-							Namespace: "apache",
+							Namespace: "remote",
 							Type:      "caller",
 							Id:        "id2",
 						},
@@ -94,18 +103,22 @@ func TestFunctionHandler(t *testing.T) {
 	respBytes, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 
-
 	err = proto.Unmarshal(respBytes, &fromFunction)
 
 	response := fromFunction.GetInvocationResult()
-	assert.Equal(t, 1, len(response.StateMutations), "Wrong number of state mutations")
 
-	mutation := response.StateMutations[0]
-	assert.Equal(t, "counter", mutation.StateName, "Wrong state mutated")
-	assert.Equal(t, statefun.FromFunction_PersistedValueMutation_MODIFY, mutation.MutationType, "Wrong mutation type")
+	mutations := map[string]*statefun.FromFunction_PersistedValueMutation{}
+	for _, mutation := range response.StateMutations {
+		mutations[mutation.StateName] = mutation
+	}
+
+	assert.Equal(t, 2, len(mutations), "wrong number of state mutations")
+
+	assert.Contains(t, mutations, "modified-state", "missing modified state")
+	assert.Equal(t, statefun.FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
 
 	var packagedState any.Any
-	if err := proto.Unmarshal(mutation.StateValue, &packagedState); err != nil {
+	if err := proto.Unmarshal(mutations["modified-state"].StateValue, &packagedState); err != nil {
 		assert.Fail(t, err.Error())
 	}
 
@@ -115,6 +128,9 @@ func TestFunctionHandler(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(2), counterUpdate.Count, "wrong counter value")
+
+	assert.Contains(t, mutations, "deleted-state", "missing deleted state")
+	assert.Equal(t, statefun.FromFunction_PersistedValueMutation_DELETE, mutations["deleted-state"].MutationType, "wrong mutation type")
 
 	assert.Equal(t, 1, len(response.OutgoingMessages), "wrong number of outgoing messages")
 	assert.Equal(t, caller, *response.OutgoingMessages[0].Target, "wrong message target")
@@ -153,7 +169,7 @@ type Greeter struct{}
 
 func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, _ *anypb.Any) error {
 	var count Counter
-	if err := ctx.Get("counter", &count); err != nil {
+	if err := ctx.Get("modified-state", &count); err != nil {
 		return err
 	}
 
@@ -175,8 +191,18 @@ func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, _ *anypb.Any) error {
 		return err
 	}
 
-	if err := ctx.Set("counter", &count); err != nil {
+	if err := ctx.Set("modified-state", &count); err != nil {
 		return err
+	}
+
+	ctx.Clear("deleted-state")
+
+	if err := ctx.Get("read-only-state", &count); err != nil {
+		return err
+	}
+
+	if count.Count != 1 {
+		return errors.New("invalid count for read-only state")
 	}
 
 	return nil

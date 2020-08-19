@@ -224,14 +224,20 @@ func (tracker *effectTracker) fromFunction() (*FromFunction, error) {
 			continue
 		}
 
-		mutationType := FromFunction_PersistedValueMutation_MODIFY
-		if state.value == nil {
-			mutationType = FromFunction_PersistedValueMutation_DELETE
-		}
+		var err error
+		var bytes []byte
+		var mutationType FromFunction_PersistedValueMutation_MutationType
 
-		bytes, err := proto.Marshal(state.value)
-		if err != nil {
-			return nil, err
+		if state.value == nil {
+			bytes = nil
+			mutationType = FromFunction_PersistedValueMutation_DELETE
+		} else {
+			mutationType = FromFunction_PersistedValueMutation_MODIFY
+
+			bytes, err = proto.Marshal(state.value)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		mutation := &FromFunction_PersistedValueMutation{
