@@ -7,7 +7,6 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/anypb"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -167,7 +166,11 @@ func TestValidation(t *testing.T) {
 
 type Greeter struct{}
 
-func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, _ *anypb.Any) error {
+func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, msg *any.Any) error {
+	if err := ptypes.UnmarshalAny(msg, &Invoke{}); err != nil {
+		return err
+	}
+
 	var count Counter
 	if err := ctx.Get("modified-state", &count); err != nil {
 		return err
