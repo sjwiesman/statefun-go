@@ -21,13 +21,13 @@ type CounterFunction struct{}
 
 func (c CounterFunction) Invoke(ctx statefun.StatefulFunctionIO, message *any.Any) error {
 	var count InvokeCount
-	if err := ctx.GetAndUnpack("invoke_count", &count); err != nil {
+	if err := ctx.Get("invoke_count", &count); err != nil {
 		return fmt.Errorf("unable to deserialize invoke_count %w", err)
 	}
 
 	count.Count += 1
 
-	if err := ctx.SetAndPack("invoke_count", &count); err != nil {
+	if err := ctx.Set("invoke_count", &count); err != nil {
 		return fmt.Errorf("unable to serialize invoke_count %w", err)
 	}
 
@@ -42,10 +42,10 @@ func (c CounterFunction) Invoke(ctx statefun.StatefulFunctionIO, message *any.An
 		Id:        randToken(0xFFFF),
 	}
 
-	return ctx.SendAndPack(target, response)
+	return ctx.Send(target, response)
 }
 
-func ForwardFunction(message *any.Any, ctx statefun.StatefulFunctionIO) error {
+func ForwardFunction(ctx statefun.StatefulFunctionIO, message *any.Any) error {
 	egress := statefun.EgressIdentifier{
 		EgressNamespace: "org.apache.flink.statefun.e2e.remote",
 		EgressType:      "invoke-results",
@@ -56,7 +56,7 @@ func ForwardFunction(message *any.Any, ctx statefun.StatefulFunctionIO) error {
 		return err
 	}
 
-	return ctx.SendEgressAndPack(egress, kafkaRecord)
+	return ctx.SendEgress(egress, kafkaRecord)
 }
 
 func main() {

@@ -3,16 +3,19 @@ package statefun
 import (
 	"errors"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 )
 
-func KafkaEgressRecord(topic string, key string, message *any.Any) (*KafkaProducerRecord, error) {
+func KafkaEgressRecord(topic string, key string, message proto.Message) (*KafkaProducerRecord, error) {
 	if message == nil {
 		return nil, errors.New("cannot send nil message to kafka")
 	}
 
-	valueBytes, err := proto.Marshal(message)
+	marshalled, err := marshall(message)
+	if err != nil {
+		return nil, err
+	}
+
+	bytes, err := proto.Marshal(marshalled)
 	if err != nil {
 		return nil, err
 	}
@@ -20,19 +23,6 @@ func KafkaEgressRecord(topic string, key string, message *any.Any) (*KafkaProduc
 	return &KafkaProducerRecord{
 		Key:        key,
 		Topic:      topic,
-		ValueBytes: valueBytes,
+		ValueBytes: bytes,
 	}, nil
-}
-
-func KafkaEgressRecordPack(topic string, key string, message proto.Message) (*KafkaProducerRecord, error) {
-	if message == nil {
-		return nil, errors.New("cannot send nil message to kafka")
-	}
-
-	packedMessage, err := ptypes.MarshalAny(message)
-	if err != nil {
-		return nil, err
-	}
-
-	return KafkaEgressRecord(topic, key, packedMessage)
 }

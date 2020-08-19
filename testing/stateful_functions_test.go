@@ -17,7 +17,7 @@ var caller = statefun.Address{
 	Id:        "id2",
 }
 
-var egress = statefun.EgressIdentifier{"test", "egress"}
+var egress = statefun.EgressIdentifier{EgressNamespace: "test", EgressType: "egress"}
 
 var serializedGreeting any.Any
 
@@ -120,7 +120,7 @@ type Greeter struct{}
 
 func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, message *anypb.Any) error {
 	var count Counter
-	if err := ctx.GetAndUnpack("counter", &count); err != nil {
+	if err := ctx.Get("counter", &count); err != nil {
 		return err
 	}
 
@@ -130,19 +130,19 @@ func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, message *anypb.Any) err
 		Greeting: "Hello",
 	}
 
-	if err := ctx.ReplyAndPack(greeting); err != nil {
+	if err := ctx.Reply(greeting); err != nil {
 		return err
 	}
 
-	if err := ctx.SendAfterAndPack(ctx.Caller(), time.Duration(6e+10), greeting); err != nil {
+	if err := ctx.SendAfter(ctx.Caller(), time.Duration(6e+10), greeting); err != nil {
 		return err
 	}
 
-	if err := ctx.SendEgressAndPack(egress, greeting); err != nil {
+	if err := ctx.SendEgress(egress, greeting); err != nil {
 		return err
 	}
 
-	if err := ctx.SetAndPack("counter", &count); err != nil {
+	if err := ctx.Set("counter", &count); err != nil {
 		return err
 	}
 

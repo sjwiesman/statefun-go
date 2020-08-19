@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
-	any "google.golang.org/protobuf/types/known/anypb"
+	"github.com/golang/protobuf/ptypes/any"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -20,18 +20,18 @@ type FunctionRegistry interface {
 	RegisterFunction(funcType FunctionType, function StatefulFunction)
 
 	// Registers a function pointer as a StatefulFunction under a FunctionType.
-	RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx StatefulFunctionIO) error)
+	RegisterFunctionPointer(funcType FunctionType, function func(ctx StatefulFunctionIO, message *any.Any) error)
 
 	// Executes a batch request from the runtime.
 	Process(request *ToFunction) (*FromFunction, error)
 }
 
 type pointer struct {
-	f func(message *any.Any, ctx StatefulFunctionIO) error
+	f func(ctx StatefulFunctionIO, message *any.Any) error
 }
 
 func (pointer *pointer) Invoke(ctx StatefulFunctionIO, message *any.Any) error {
-	return pointer.f(message, ctx)
+	return pointer.f(ctx, message)
 }
 
 type functions struct {
@@ -48,7 +48,7 @@ func (functions *functions) RegisterFunction(funcType FunctionType, function Sta
 	functions.module[funcType] = function
 }
 
-func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function func(message *any.Any, ctx StatefulFunctionIO) error) {
+func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function func(ctx StatefulFunctionIO, message *any.Any) error) {
 	functions.module[funcType] = &pointer{
 		f: function,
 	}
