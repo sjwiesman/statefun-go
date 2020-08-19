@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// Provides the context for a single StatefulFunction instance.
-// The invocation's context may be used to obtain the {@link Address} of itself or the calling
+// Provides the runtime for a single StatefulFunction instance.
+// The invocation's runtime may be used to obtain the {@link Address} of itself or the calling
 // function (if the function was invoked by another function), or used to invoke other functions
 // (including itself) and to send messages to egresses. Additionally, it supports
 // reading and writing persisted state values with exactly-once guarantees provided
@@ -42,7 +42,7 @@ type StatefulFunctionIO interface {
 	// and marshals the given message into an any.Any.
 	Send(target *Address, message proto.Message) error
 
-	// Invokes the calling function of the current invocation under context. This has the same effect
+	// Invokes the calling function of the current invocation under runtime. This has the same effect
 	// as calling Send with the address obtained from Caller, and
 	// will not work if the current function was not invoked by another function.
 	// This method marshals the given message into an any.Any.
@@ -67,10 +67,10 @@ type state struct {
 	value   *any.Any
 }
 
-// context is the main effect tracker of the function invocation
+// runtime is the main effect tracker of the function invocation
 // It tracks all responses that will be sent back to the
 // Flink runtime after the full batch has been executed.
-type context struct {
+type runtime struct {
 	self              *Address
 	caller            *Address
 	states            map[string]*state
@@ -79,10 +79,10 @@ type context struct {
 	outgoingEgress    []*FromFunction_EgressMessage
 }
 
-// Create a new context based on the target function
+// Create a new runtime based on the target function
 // and set of initial states.
-func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) context {
-	ctx := context{
+func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) runtime {
+	ctx := runtime{
 		self:              self,
 		caller:            nil,
 		states:            map[string]*state{},
@@ -107,15 +107,15 @@ func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) con
 	return ctx
 }
 
-func (ctx *context) Self() *Address {
+func (ctx *runtime) Self() *Address {
 	return ctx.self
 }
 
-func (ctx *context) Caller() *Address {
+func (ctx *runtime) Caller() *Address {
 	return ctx.caller
 }
 
-func (ctx *context) Get(name string, state proto.Message) error {
+func (ctx *runtime) Get(name string, state proto.Message) error {
 	packedState := ctx.states[name]
 	if packedState == nil {
 		return errors.New(fmt.Sprintf("unknown state name %s", name))
@@ -128,7 +128,7 @@ func (ctx *context) Get(name string, state proto.Message) error {
 	return unmarshall(packedState.value, state)
 }
 
-func (ctx *context) Set(name string, value proto.Message) error {
+func (ctx *runtime) Set(name string, value proto.Message) error {
 	state := ctx.states[name]
 	if state == nil {
 		return errors.New(fmt.Sprintf("Unknown state name %s", name))
@@ -146,13 +146,17 @@ func (ctx *context) Set(name string, value proto.Message) error {
 	return nil
 }
 
-func (ctx *context) Clear(name string) {
+func (ctx *runtime) Clear(name string) {
 	_ = ctx.Set(name, nil)
 }
 
-func (ctx *context) Send(target *Address, message proto.Message) error {
+func (ctx *runtime) Send(target *Address, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
+	}
+
+	if target == nil {
+		return errors.New("cannot send message to nil target")
 	}
 
 	packedState, err := marshall(message)
@@ -169,11 +173,11 @@ func (ctx *context) Send(target *Address, message proto.Message) error {
 	return nil
 }
 
-func (ctx *context) Reply(message proto.Message) error {
+func (ctx *runtime) Reply(message proto.Message) error {
 	return ctx.Send(ctx.caller, message)
 }
 
-func (ctx *context) SendAfter(target *Address, duration time.Duration, message proto.Message) error {
+func (ctx *runtime) SendAfter(target *Address, duration time.Duration, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -193,7 +197,7 @@ func (ctx *context) SendAfter(target *Address, duration time.Duration, message p
 	return nil
 }
 
-func (ctx *context) SendEgress(egress EgressIdentifier, message proto.Message) error {
+func (ctx *runtime) SendEgress(egress EgressIdentifier, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to egress")
 	}
@@ -213,7 +217,7 @@ func (ctx *context) SendEgress(egress EgressIdentifier, message proto.Message) e
 	return nil
 }
 
-func (ctx *context) fromFunction() (*FromFunction, error) {
+func (ctx *runtime) fromFunction() (*FromFunction, error) {
 	var mutations []*FromFunction_PersistedValueMutation
 	for name, state := range ctx.states {
 		if !state.updated {

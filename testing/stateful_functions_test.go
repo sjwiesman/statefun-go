@@ -1,12 +1,17 @@
 package testing
 
 import (
+	"bytes"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/anypb"
-	"statefun-go/pkg/flink/statefun"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"statefun-go/statefun"
+	"strings"
 	"testing"
 	"time"
 )
@@ -76,12 +81,29 @@ func TestFunctionHandler(t *testing.T) {
 		Type:      "greeter",
 	}, Greeter{})
 
-	result, err := functions.Process(&toFunction)
+	server := httptest.NewServer(functions)
+	defer server.Close()
+
+	binary, _ := proto.Marshal(&toFunction)
+	resp, err := http.Post(server.URL, "application/octet-stream", bytes.NewReader(binary))
+
 	if err != nil {
 		assert.Error(t, err)
 	}
 
-	response := result.GetInvocationResult()
+	if resp.StatusCode != 200 {
+		assert.Fail(t, "received non-200 response: %d\n", resp.StatusCode)
+	}
+
+	var fromFunction statefun.FromFunction
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		assert.Error(t, err)
+	}
+
+	err = proto.Unmarshal(respBytes, &fromFunction)
+
+	response := fromFunction.GetInvocationResult()
 	assert.Equal(t, 1, len(response.StateMutations), "Wrong number of state mutations")
 
 	mutation := response.StateMutations[0]
@@ -113,12 +135,41 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Equal(t, egress.EgressNamespace, response.OutgoingEgresses[0].EgressNamespace, "Wrong egress namespace")
 	assert.Equal(t, egress.EgressType, response.OutgoingEgresses[0].EgressType, "Wrong egress type")
 	assert.Equal(t, serializedGreeting, *response.OutgoingEgresses[0].Argument, "Wrong egress message")
+}
 
+func TestValidation(t *testing.T) {
+	functions := statefun.NewFunctionRegistry()
+	server := httptest.NewServer(functions)
+	defer server.Close()
+
+	resp, _ := http.Get(server.URL)
+
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		assert.Fail(t, "incorrect validation code on bad method: %d\n", resp.StatusCode)
+	}
+
+	resp, _ = http.Post(server.URL, "application/json", nil)
+
+	if resp.StatusCode != http.StatusUnsupportedMediaType {
+		assert.Fail(t, "incorrect validation code on bad media type: %d\n", resp.StatusCode)
+	}
+
+	resp, _ = http.Post(server.URL, "application/octet-stream", nil)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		assert.Fail(t, "incorrect validation code on missing content: %d\n", resp.StatusCode)
+	}
+
+	resp, _ = http.Post(server.URL, "application/octet-stream", strings.NewReader("bad content"))
+
+	if resp.StatusCode != http.StatusBadRequest {
+		assert.Fail(t, "incorrect validation code on missing content: %d\n", resp.StatusCode)
+	}
 }
 
 type Greeter struct{}
 
-func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, message *anypb.Any) error {
+func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, _ *anypb.Any) error {
 	var count Counter
 	if err := ctx.Get("counter", &count); err != nil {
 		return err
