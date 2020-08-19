@@ -250,5 +250,3 @@ func (ctx *context) fromFunction() (*FromFunction, error) {
 		},
 	}, nil
 }
-
-

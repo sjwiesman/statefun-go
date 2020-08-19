@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
-	"io/ioutil"
+	"github.com/valyala/bytebufferpool"
 	"log"
 	"net/http"
 )
@@ -89,19 +89,22 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bytes, err := ioutil.ReadAll(req.Body)
+	buffer := bytebufferpool.Get()
+	defer bytebufferpool.Put(buffer)
+
+	length, err := buffer.ReadFrom(req.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if len(bytes) == 0 {
+	if length == 0 {
 		http.Error(w, "Empty request body", http.StatusBadRequest)
 		return
 	}
 
 	var request ToFunction
-	err = proto.Unmarshal(bytes, &request)
+	err = proto.Unmarshal(buffer.Bytes(), &request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -115,7 +118,7 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bytes, err = proto.Marshal(response)
+	bytes, err := proto.Marshal(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
