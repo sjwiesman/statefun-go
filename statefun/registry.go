@@ -68,7 +68,7 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	response, err := functions.invoke(req.Context(), toFunction)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		log.Printf("Error processing request %s", toFunction.String())
+		log.Printf("error processing request %s", proto.MarshalTextString(toFunction))
 		log.Print(err)
 		return
 	}
