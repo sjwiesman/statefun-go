@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-// Provides the runtime for a single StatefulFunction instance.
-// The invocation's runtime may be used to obtain the {@link Address} of itself or the calling
+// Provides the effectTracker for a single StatefulFunction instance.
+// The invocation's effectTracker may be used to obtain the {@link Address} of itself or the calling
 // function (if the function was invoked by another function), or used to invoke other functions
 // (including itself) and to send messages to egresses. Additionally, it supports
 // reading and writing persisted state values with exactly-once guarantees provided
-// by the runtime.
+// by the effectTracker.
 type StatefulFunctionIO interface {
 	// Self returns the address of the current
 	// function instance under evaluation
@@ -42,7 +42,7 @@ type StatefulFunctionIO interface {
 	// and marshals the given message into an any.Any.
 	Send(target *Address, message proto.Message) error
 
-	// Invokes the calling function of the current invocation under runtime. This has the same effect
+	// Invokes the calling function of the current invocation under effectTracker. This has the same effect
 	// as calling Send with the address obtained from Caller, and
 	// will not work if the current function was not invoked by another function.
 	// This method marshals the given message into an any.Any.
@@ -67,10 +67,10 @@ type state struct {
 	value   *any.Any
 }
 
-// runtime is the main effect tracker of the function invocation
+// effectTracker is the main effect tracker of the function invocation
 // It tracks all responses that will be sent back to the
-// Flink runtime after the full batch has been executed.
-type runtime struct {
+// Flink effectTracker after the full batch has been executed.
+type effectTracker struct {
 	self              *Address
 	caller            *Address
 	states            map[string]*state
@@ -79,10 +79,10 @@ type runtime struct {
 	outgoingEgress    []*FromFunction_EgressMessage
 }
 
-// Create a new runtime based on the target function
+// Create a new effectTracker based on the target function
 // and set of initial states.
-func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) runtime {
-	ctx := runtime{
+func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) effectTracker {
+	ctx := effectTracker{
 		self:              self,
 		caller:            nil,
 		states:            map[string]*state{},
@@ -107,16 +107,16 @@ func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) run
 	return ctx
 }
 
-func (ctx *runtime) Self() *Address {
-	return ctx.self
+func (tracker *effectTracker) Self() *Address {
+	return tracker.self
 }
 
-func (ctx *runtime) Caller() *Address {
-	return ctx.caller
+func (tracker *effectTracker) Caller() *Address {
+	return tracker.caller
 }
 
-func (ctx *runtime) Get(name string, state proto.Message) error {
-	packedState := ctx.states[name]
+func (tracker *effectTracker) Get(name string, state proto.Message) error {
+	packedState := tracker.states[name]
 	if packedState == nil {
 		return errors.New(fmt.Sprintf("unknown state name %s", name))
 	}
@@ -128,8 +128,8 @@ func (ctx *runtime) Get(name string, state proto.Message) error {
 	return unmarshall(packedState.value, state)
 }
 
-func (ctx *runtime) Set(name string, value proto.Message) error {
-	state := ctx.states[name]
+func (tracker *effectTracker) Set(name string, value proto.Message) error {
+	state := tracker.states[name]
 	if state == nil {
 		return errors.New(fmt.Sprintf("Unknown state name %s", name))
 	}
@@ -141,16 +141,16 @@ func (ctx *runtime) Set(name string, value proto.Message) error {
 
 	state.updated = true
 	state.value = packedState
-	ctx.states[name] = state
+	tracker.states[name] = state
 
 	return nil
 }
 
-func (ctx *runtime) Clear(name string) {
-	_ = ctx.Set(name, nil)
+func (tracker *effectTracker) Clear(name string) {
+	_ = tracker.Set(name, nil)
 }
 
-func (ctx *runtime) Send(target *Address, message proto.Message) error {
+func (tracker *effectTracker) Send(target *Address, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -169,15 +169,15 @@ func (ctx *runtime) Send(target *Address, message proto.Message) error {
 		Argument: packedState,
 	}
 
-	ctx.invocations = append(ctx.invocations, invocation)
+	tracker.invocations = append(tracker.invocations, invocation)
 	return nil
 }
 
-func (ctx *runtime) Reply(message proto.Message) error {
-	return ctx.Send(ctx.caller, message)
+func (tracker *effectTracker) Reply(message proto.Message) error {
+	return tracker.Send(tracker.caller, message)
 }
 
-func (ctx *runtime) SendAfter(target *Address, duration time.Duration, message proto.Message) error {
+func (tracker *effectTracker) SendAfter(target *Address, duration time.Duration, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -193,11 +193,11 @@ func (ctx *runtime) SendAfter(target *Address, duration time.Duration, message p
 		Argument:  packedMessage,
 	}
 
-	ctx.delayedInvocation = append(ctx.delayedInvocation, delayedInvocation)
+	tracker.delayedInvocation = append(tracker.delayedInvocation, delayedInvocation)
 	return nil
 }
 
-func (ctx *runtime) SendEgress(egress EgressIdentifier, message proto.Message) error {
+func (tracker *effectTracker) SendEgress(egress EgressIdentifier, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to egress")
 	}
@@ -213,13 +213,13 @@ func (ctx *runtime) SendEgress(egress EgressIdentifier, message proto.Message) e
 		Argument:        packedMessage,
 	}
 
-	ctx.outgoingEgress = append(ctx.outgoingEgress, egressMessage)
+	tracker.outgoingEgress = append(tracker.outgoingEgress, egressMessage)
 	return nil
 }
 
-func (ctx *runtime) fromFunction() (*FromFunction, error) {
+func (tracker *effectTracker) fromFunction() (*FromFunction, error) {
 	var mutations []*FromFunction_PersistedValueMutation
-	for name, state := range ctx.states {
+	for name, state := range tracker.states {
 		if !state.updated {
 			continue
 		}
@@ -247,9 +247,9 @@ func (ctx *runtime) fromFunction() (*FromFunction, error) {
 		Response: &FromFunction_InvocationResult{
 			InvocationResult: &FromFunction_InvocationResponse{
 				StateMutations:     mutations,
-				OutgoingMessages:   ctx.invocations,
-				DelayedInvocations: ctx.delayedInvocation,
-				OutgoingEgresses:   ctx.outgoingEgress,
+				OutgoingMessages:   tracker.invocations,
+				DelayedInvocations: tracker.delayedInvocation,
+				OutgoingEgresses:   tracker.outgoingEgress,
 			},
 		},
 	}, nil

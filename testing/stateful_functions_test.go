@@ -120,21 +120,21 @@ func TestFunctionHandler(t *testing.T) {
 		assert.Fail(t, err.Error())
 	}
 
-	assert.Equal(t, int32(2), counterUpdate.Count, "Wrong counter value")
+	assert.Equal(t, int32(2), counterUpdate.Count, "wrong counter value")
 
-	assert.Equal(t, 1, len(response.OutgoingMessages), "Wrong number of outgoing messages")
-	assert.Equal(t, caller, *response.OutgoingMessages[0].Target, "Wrong message target")
-	assert.Equal(t, serializedGreeting, *response.OutgoingMessages[0].Argument, "Wrong message argument")
+	assert.Equal(t, 1, len(response.OutgoingMessages), "wrong number of outgoing messages")
+	assert.Equal(t, caller, *response.OutgoingMessages[0].Target, "wrong message target")
+	assert.Equal(t, serializedGreeting, *response.OutgoingMessages[0].Argument, "wrong message argument")
 
-	assert.Equal(t, 1, len(response.DelayedInvocations), "Wrong number of delayed invocations")
-	assert.Equal(t, caller, *response.DelayedInvocations[0].Target, "Wrong message target")
-	assert.Equal(t, int64(60000), response.DelayedInvocations[0].DelayInMs, "Wrong message delay")
-	assert.Equal(t, serializedGreeting, *response.DelayedInvocations[0].Argument, "Wrong message argument")
+	assert.Equal(t, 1, len(response.DelayedInvocations), "wrong number of delayed invocations")
+	assert.Equal(t, caller, *response.DelayedInvocations[0].Target, "wrong message target")
+	assert.Equal(t, int64(60000), response.DelayedInvocations[0].DelayInMs, "wrong message delay")
+	assert.Equal(t, serializedGreeting, *response.DelayedInvocations[0].Argument, "wrong message argument")
 
-	assert.Equal(t, 1, len(response.OutgoingEgresses), "Wrong number of egress messages")
-	assert.Equal(t, egress.EgressNamespace, response.OutgoingEgresses[0].EgressNamespace, "Wrong egress namespace")
-	assert.Equal(t, egress.EgressType, response.OutgoingEgresses[0].EgressType, "Wrong egress type")
-	assert.Equal(t, serializedGreeting, *response.OutgoingEgresses[0].Argument, "Wrong egress message")
+	assert.Equal(t, 1, len(response.OutgoingEgresses), "wrong number of egress messages")
+	assert.Equal(t, egress.EgressNamespace, response.OutgoingEgresses[0].EgressNamespace, "wrong egress namespace")
+	assert.Equal(t, egress.EgressType, response.OutgoingEgresses[0].EgressType, "wrong egress type")
+	assert.Equal(t, serializedGreeting, *response.OutgoingEgresses[0].Argument, "wrong egress message")
 }
 
 func TestValidation(t *testing.T) {
