@@ -15,9 +15,9 @@ import (
 //
 // An individual function can be invoked with arbitrary input form any other
 // function (including itself), or routed form an ingress via a Router. To
-// invoke a function, the caller simply needs to know the Address of the target
+// executeBatch a function, the caller simply needs to know the Address of the target
 // function. As a result of invoking a StatefulFunction, the function may continue
-// to invoke other functions, modify its state, or send messages to egresses
+// to executeBatch other functions, modify its state, or send messages to egresses
 // addressed by an egress identifier.
 //
 // Each individual function instance may have state that is maintained by the system,

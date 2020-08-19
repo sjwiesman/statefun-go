@@ -22,9 +22,6 @@ type FunctionRegistry interface {
 
 	// Registers a function pointer as a StatefulFunction under a FunctionType.
 	RegisterFunctionPointer(funcType FunctionType, function func(ctx StatefulFunctionIO, message *any.Any) error)
-
-	// Executes a batch request from the runtime.
-	invoke(ctx context.Context, request *ToFunction) (*FromFunction, error)
 }
 
 type pointer struct {
@@ -65,7 +62,7 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	response, err := functions.invoke(req.Context(), toFunction)
+	response, err := executeBatch(functions, req.Context(), toFunction)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Printf("error processing request %s", proto.MarshalTextString(toFunction))
@@ -123,7 +120,7 @@ func validateRequest(w http.ResponseWriter, req *http.Request) bool {
 	return true
 }
 
-func (functions functions) invoke(ctx context.Context, request *ToFunction) (*FromFunction, error) {
+func executeBatch(functions functions, ctx context.Context, request *ToFunction) (*FromFunction, error) {
 	invocations := request.GetInvocation()
 	if invocations == nil {
 		return nil, errors.New("missing invocations for batch")

@@ -91,7 +91,7 @@ func (FromFunction_PersistedValueMutation_MutationType) EnumDescriptor() ([]byte
 
 // An Address is the unique identity of an individual StatefulFunction, containing
 // a function's type and an unique identifier within the type. The function's
-// type denotes the "class" of function to invoke, while the unique identifier addresses the
+// type denotes the "class" of function to executeBatch, while the unique identifier addresses the
 // invocation to a specific function instance.
 type Address struct {
 	state         protoimpl.MessageState
@@ -408,14 +408,14 @@ func (x *ToFunction_Invocation) GetArgument() *any.Any {
 	return nil
 }
 
-// InvocationBatchRequest represents a request to invoke a remote function. It is always associated with a target
-// address (the function to invoke), a list of eager state values.
+// InvocationBatchRequest represents a request to executeBatch a remote function. It is always associated with a target
+// address (the function to executeBatch), a list of eager state values.
 type ToFunction_InvocationBatchRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The address of the function to invoke
+	// The address of the function to executeBatch
 	Target *Address `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
 	// A list of PersistedValues that were registered as an eager state.
 	State []*ToFunction_PersistedValue `protobuf:"bytes,2,rep,name=state,proto3" json:"state,omitempty"`
@@ -548,7 +548,7 @@ type FromFunction_Invocation struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The target function to invoke
+	// The target function to executeBatch
 	Target *Address `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
 	// The invocation argument (aka the message sent to the target function)
 	Argument *any.Any `protobuf:"bytes,2,opt,name=argument,proto3" json:"argument,omitempty"`
