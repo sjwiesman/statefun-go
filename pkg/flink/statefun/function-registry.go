@@ -89,17 +89,17 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	buffer := bytebufferpool.Get()
-	defer bytebufferpool.Put(buffer)
-
-	length, err := buffer.ReadFrom(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if req.Body == nil || req.ContentLength == 0 {
+		http.Error(w, "Empty request body", http.StatusBadRequest)
 		return
 	}
 
-	if length == 0 {
-		http.Error(w, "Empty request body", http.StatusBadRequest)
+	buffer := bytebufferpool.Get()
+	defer bytebufferpool.Put(buffer)
+
+	_, err := buffer.ReadFrom(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
