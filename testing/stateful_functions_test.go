@@ -87,19 +87,13 @@ func TestFunctionHandler(t *testing.T) {
 	binary, _ := proto.Marshal(&toFunction)
 	resp, err := http.Post(server.URL, "application/octet-stream", bytes.NewReader(binary))
 
-	if err != nil {
-		assert.Error(t, err)
-	}
-
-	if resp.StatusCode != 200 {
-		assert.Fail(t, "received non-200 response: %d\n", resp.StatusCode)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "received non-200 response")
 
 	var fromFunction statefun.FromFunction
 	respBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		assert.Error(t, err)
-	}
+	assert.NoError(t, err)
+
 
 	err = proto.Unmarshal(respBytes, &fromFunction)
 
@@ -143,28 +137,16 @@ func TestValidation(t *testing.T) {
 	defer server.Close()
 
 	resp, _ := http.Get(server.URL)
-
-	if resp.StatusCode != http.StatusMethodNotAllowed {
-		assert.Fail(t, "incorrect validation code on bad method: %d\n", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode, "incorrect validation code on bad method")
 
 	resp, _ = http.Post(server.URL, "application/json", nil)
-
-	if resp.StatusCode != http.StatusUnsupportedMediaType {
-		assert.Fail(t, "incorrect validation code on bad media type: %d\n", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode, "incorrect validation code on bad media type")
 
 	resp, _ = http.Post(server.URL, "application/octet-stream", nil)
-
-	if resp.StatusCode != http.StatusBadRequest {
-		assert.Fail(t, "incorrect validation code on missing content: %d\n", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "incorrect validation code on missing content")
 
 	resp, _ = http.Post(server.URL, "application/octet-stream", strings.NewReader("bad content"))
-
-	if resp.StatusCode != http.StatusBadRequest {
-		assert.Fail(t, "incorrect validation code on missing content: %d\n", resp.StatusCode)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "incorrect validation code on malformed content")
 }
 
 type Greeter struct{}
