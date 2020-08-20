@@ -163,13 +163,13 @@ func TestValidation(t *testing.T) {
 
 type Greeter struct{}
 
-func (f Greeter) Invoke(ctx StatefulFunctionIO, msg *any.Any) error {
+func (f Greeter) Invoke(io StatefulFunctionIO, msg *any.Any) error {
 	if err := ptypes.UnmarshalAny(msg, &Invoke{}); err != nil {
 		return err
 	}
 
 	var count Counter
-	if err := ctx.Get("modified-state", &count); err != nil {
+	if err := io.Get("modified-state", &count); err != nil {
 		return err
 	}
 
@@ -179,25 +179,25 @@ func (f Greeter) Invoke(ctx StatefulFunctionIO, msg *any.Any) error {
 		Greeting: "Hello",
 	}
 
-	if err := ctx.Reply(greeting); err != nil {
+	if err := io.Reply(greeting); err != nil {
 		return err
 	}
 
-	if err := ctx.SendAfter(ctx.Caller(), time.Duration(6e+10), greeting); err != nil {
+	if err := io.SendAfter(io.Caller(), time.Duration(6e+10), greeting); err != nil {
 		return err
 	}
 
-	if err := ctx.SendEgress(egress, greeting); err != nil {
+	if err := io.SendEgress(egress, greeting); err != nil {
 		return err
 	}
 
-	if err := ctx.Set("modified-state", &count); err != nil {
+	if err := io.Set("modified-state", &count); err != nil {
 		return err
 	}
 
-	ctx.Clear("deleted-state")
+	io.Clear("deleted-state")
 
-	if err := ctx.Get("read-only-state", &count); err != nil {
+	if err := io.Get("read-only-state", &count); err != nil {
 		return err
 	}
 
