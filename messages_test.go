@@ -4,6 +4,12 @@
 // 	protoc        v3.12.3
 // source: messages_test.proto
 
+// This class was edited to change its
+// name from messages_test.pb.go to
+// messages_test.go. This is because
+// go's tooling only filters out test
+// classes with this specific extension.
+// Otherwise, these classes leak into the api.
 package statefun_go
 
 import (
