@@ -1,12 +1,5 @@
-# Statefun Go SDK
+package statefun_go
 
-An SDK for writing stateful functions in Go. See the [Apache Flink Stateful
-Functions](https://flink.apache.org/stateful-functions.html) website for more
-information about the project.
-
-The following shows how to write a simple stateful function and serve it for use in a Statefun deployment.
-
-```go
 import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes/any"
@@ -34,7 +27,7 @@ func (greeter Greeter) Invoke(io StatefulFunctionIO, msg *any.Any) error {
 
 	response := computeGreeting(io.Self().Id, seen.seen)
 
-	egressMessage := KafkaEgressRecord("greeting", io.Self().Id, response)
+	egressMessage := KafkaEgressRecord("greeting", io.Self().Id, seen)
 	err := io.SendEgress(egressId, egressMessage)
 
 	return err
@@ -63,15 +56,3 @@ func main() {
 	http.Handle("/statefun", registry)
 	_ = http.ListenAndServe(":8000", nil)
 }
-```
-
-
-
-This is a simple example that runs a simple stateful function that accepts requests from a Kafka ingress, and then responds by sending greeting responses to a Kafka egress.
-It demonstrates the primitive building blocks of a Stateful Functions applications, such as ingresses, handling state in functions, and sending messages to egresses.
-
-Refer to the Stateful Functions documentation to learn how to use this in a deployment.
-Especially the modules documentation is pertinent.
-
-**WARNING** This library is still in alpha and developers reserve the right to 
-make breaking changes to the api. 
