@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// Provides the effectTracker for a single StatefulFunction instance.
-// The invocation's effectTracker may be used to obtain the {@link Address} of itself or the calling
+// Provides the effect tracker for a single StatefulFunction instance.
+// The invocation's io context may be used to obtain the Address of itself or the calling
 // function (if the function was invoked by another function), or used to invoke other functions
 // (including itself) and to send messages to egresses. Additionally, it supports
 // reading and writing persisted state values with exactly-once guarantees provided
-// by the effectTracker.
+// by the runtime.
 type StatefulFunctionIO interface {
 	// Self returns the address of the current
 	// function instance under evaluation
@@ -43,7 +43,7 @@ type StatefulFunctionIO interface {
 	// and marshals the given message into an any.Any.
 	Send(target Address, message proto.Message) error
 
-	// Invokes the calling function of the current invocation under effectTracker. This has the same effect
+	// Invokes the calling function of the current invocation under execution. This has the same effect
 	// as calling Send with the address obtained from Caller, and
 	// will not work if the current function was not invoked by another function.
 	// This method marshals the given message into an any.Any.
@@ -70,7 +70,7 @@ type state struct {
 
 // effectTracker is the main effect tracker of the function invocation
 // It tracks all responses that will be sent back to the
-// Flink effectTracker after the full batch has been executed.
+// Flink runtime after the full batch has been executed.
 type effectTracker struct {
 	self              Address
 	caller            *Address
@@ -82,8 +82,8 @@ type effectTracker struct {
 
 // Create a new effectTracker based on the target function
 // and set of initial states.
-func newContext(self *internal.Address, persistedValues []*internal.ToFunction_PersistedValue) effectTracker {
-	ctx := effectTracker{
+func newStateFunIO(self *internal.Address, persistedValues []*internal.ToFunction_PersistedValue) *effectTracker {
+	ctx := &effectTracker{
 		self: Address{
 			FunctionType: FunctionType{
 				Namespace: self.Namespace,

@@ -138,7 +138,7 @@ func executeBatch(functions functions, ctx context.Context, request *internal.To
 		return nil, errors.New(funcType.String() + " does not exist")
 	}
 
-	runtime := newContext(invocations.Target, invocations.State)
+	runtime := newStateFunIO(invocations.Target, invocations.State)
 
 	for _, invocation := range invocations.Invocations {
 		select {
@@ -156,7 +156,7 @@ func executeBatch(functions functions, ctx context.Context, request *internal.To
 					Id: invocation.Caller.Id,
 				}
 			}
-			err := function.Invoke(&runtime, (*invocation).Argument)
+			err := function.Invoke(runtime, (*invocation).Argument)
 			if err != nil {
 				return nil, fmt.Errorf("failed to execute function %s %w", runtime.self.String(), err)
 			}
