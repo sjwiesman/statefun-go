@@ -10,12 +10,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"statefun-go/internal"
 	"strings"
 	"testing"
 	"time"
 )
 
-var caller = Address{
+var caller = internal.Address{
 	Namespace: "remote",
 	Type:      "caller",
 	Id:        "id2",
@@ -31,27 +32,27 @@ var stateValue []byte
 
 //noinspection GoVetCopyLock
 func init() {
-	pointer, _ := ptypes.MarshalAny(&Invoke{})
+	pointer, _ := ptypes.MarshalAny(&internal.Invoke{})
 	serializedArgument = *pointer
 
-	pointer, _ = ptypes.MarshalAny(&Greeting{Greeting: "Hello"})
+	pointer, _ = ptypes.MarshalAny(&internal.Greeting{Greeting: "Hello"})
 	serializedGreeting = *pointer
 
-	countAny, _ := ptypes.MarshalAny(&Counter{Count: 1})
+	countAny, _ := ptypes.MarshalAny(&internal.Counter{Count: 1})
 	stateValue, _ = proto.Marshal(countAny)
 }
 
 //noinspection GoVetCopyLock
 func TestFunctionHandler(t *testing.T) {
-	toFunction := ToFunction{
-		Request: &ToFunction_Invocation_{
-			Invocation: &ToFunction_InvocationBatchRequest{
-				Target: &Address{
+	toFunction := internal.ToFunction{
+		Request: &internal.ToFunction_Invocation_{
+			Invocation: &internal.ToFunction_InvocationBatchRequest{
+				Target: &internal.Address{
 					Namespace: "remote",
 					Type:      "greeter",
 					Id:        "id",
 				},
-				State: []*ToFunction_PersistedValue{
+				State: []*internal.ToFunction_PersistedValue{
 					{
 						StateName:  "modified-state",
 						StateValue: stateValue,
@@ -65,9 +66,9 @@ func TestFunctionHandler(t *testing.T) {
 						StateValue: stateValue,
 					},
 				},
-				Invocations: []*ToFunction_Invocation{
+				Invocations: []*internal.ToFunction_Invocation{
 					{
-						Caller: &Address{
+						Caller: &internal.Address{
 							Namespace: "remote",
 							Type:      "caller",
 							Id:        "id2",
@@ -95,7 +96,7 @@ func TestFunctionHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "received non-200 response")
 
-	var fromFunction FromFunction
+	var fromFunction internal.FromFunction
 	respBytes, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 
@@ -103,7 +104,7 @@ func TestFunctionHandler(t *testing.T) {
 
 	response := fromFunction.GetInvocationResult()
 
-	mutations := map[string]*FromFunction_PersistedValueMutation{}
+	mutations := map[string]*internal.FromFunction_PersistedValueMutation{}
 	for _, mutation := range response.StateMutations {
 		mutations[mutation.StateName] = mutation
 	}
@@ -111,14 +112,14 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Equal(t, 2, len(mutations), "wrong number of state mutations")
 
 	assert.Contains(t, mutations, "modified-state", "missing modified state")
-	assert.Equal(t, FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
+	assert.Equal(t, internal.FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
 
 	var packagedState any.Any
 	if err := proto.Unmarshal(mutations["modified-state"].StateValue, &packagedState); err != nil {
 		assert.Fail(t, err.Error())
 	}
 
-	var counterUpdate Counter
+	var counterUpdate internal.Counter
 	if err := ptypes.UnmarshalAny(&packagedState, &counterUpdate); err != nil {
 		assert.Fail(t, err.Error())
 	}
@@ -126,7 +127,7 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Equal(t, int32(2), counterUpdate.Count, "wrong counter value")
 
 	assert.Contains(t, mutations, "deleted-state", "missing deleted state")
-	assert.Equal(t, FromFunction_PersistedValueMutation_DELETE, mutations["deleted-state"].MutationType, "wrong mutation type")
+	assert.Equal(t, internal.FromFunction_PersistedValueMutation_DELETE, mutations["deleted-state"].MutationType, "wrong mutation type")
 
 	assert.Equal(t, 1, len(response.OutgoingMessages), "wrong number of outgoing messages")
 	assert.Equal(t, caller, *response.OutgoingMessages[0].Target, "wrong message target")
@@ -164,18 +165,18 @@ func TestValidation(t *testing.T) {
 type Greeter struct{}
 
 func (f Greeter) Invoke(io StatefulFunctionIO, msg *any.Any) error {
-	if err := ptypes.UnmarshalAny(msg, &Invoke{}); err != nil {
+	if err := ptypes.UnmarshalAny(msg, &internal.Invoke{}); err != nil {
 		return err
 	}
 
-	var count Counter
+	var count internal.Counter
 	if err := io.Get("modified-state", &count); err != nil {
 		return err
 	}
 
 	count.Count += 1
 
-	greeting := &Greeting{
+	greeting := &internal.Greeting{
 		Greeting: "Hello",
 	}
 
@@ -183,7 +184,7 @@ func (f Greeter) Invoke(io StatefulFunctionIO, msg *any.Any) error {
 		return err
 	}
 
-	if err := io.SendAfter(io.Caller(), time.Duration(6e+10), greeting); err != nil {
+	if err := io.SendAfter(*io.Caller(), time.Duration(6e+10), greeting); err != nil {
 		return err
 	}
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
+	"statefun-go/internal"
 	"time"
 )
 
@@ -17,7 +18,7 @@ import (
 type StatefulFunctionIO interface {
 	// Self returns the address of the current
 	// function instance under evaluation
-	Self() *Address
+	Self() Address
 
 	// Caller returns the address of the caller function.
 	// The caller may be nil if the message
@@ -40,7 +41,7 @@ type StatefulFunctionIO interface {
 
 	// Invokes another function with an input, identified by the target function's Address
 	// and marshals the given message into an any.Any.
-	Send(target *Address, message proto.Message) error
+	Send(target Address, message proto.Message) error
 
 	// Invokes the calling function of the current invocation under effectTracker. This has the same effect
 	// as calling Send with the address obtained from Caller, and
@@ -53,7 +54,7 @@ type StatefulFunctionIO interface {
 	// and as such, the message will not be lost if the system experiences
 	// downtime between when the message is sent and the end of the duration.
 	// This method marshals the given message into an any.Any.
-	SendAfter(target *Address, duration time.Duration, message proto.Message) error
+	SendAfter(target Address, duration time.Duration, message proto.Message) error
 
 	// Sends an output to an EgressIdentifier.
 	// This method marshals the given message into an any.Any.
@@ -71,24 +72,30 @@ type state struct {
 // It tracks all responses that will be sent back to the
 // Flink effectTracker after the full batch has been executed.
 type effectTracker struct {
-	self              *Address
+	self              Address
 	caller            *Address
 	states            map[string]*state
-	invocations       []*FromFunction_Invocation
-	delayedInvocation []*FromFunction_DelayedInvocation
-	outgoingEgress    []*FromFunction_EgressMessage
+	invocations       []*internal.FromFunction_Invocation
+	delayedInvocation []*internal.FromFunction_DelayedInvocation
+	outgoingEgress    []*internal.FromFunction_EgressMessage
 }
 
 // Create a new effectTracker based on the target function
 // and set of initial states.
-func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) effectTracker {
+func newContext(self *internal.Address, persistedValues []*internal.ToFunction_PersistedValue) effectTracker {
 	ctx := effectTracker{
-		self:              self,
+		self: Address{
+			FunctionType: FunctionType{
+				Namespace: self.Namespace,
+				Type:      self.Type,
+			},
+			Id: self.Id,
+		},
 		caller:            nil,
 		states:            map[string]*state{},
-		invocations:       []*FromFunction_Invocation{},
-		delayedInvocation: []*FromFunction_DelayedInvocation{},
-		outgoingEgress:    []*FromFunction_EgressMessage{},
+		invocations:       []*internal.FromFunction_Invocation{},
+		delayedInvocation: []*internal.FromFunction_DelayedInvocation{},
+		outgoingEgress:    []*internal.FromFunction_EgressMessage{},
 	}
 
 	for _, persistedValue := range persistedValues {
@@ -107,7 +114,7 @@ func newContext(self *Address, persistedValues []*ToFunction_PersistedValue) eff
 	return ctx
 }
 
-func (tracker *effectTracker) Self() *Address {
+func (tracker *effectTracker) Self() Address {
 	return tracker.self
 }
 
@@ -150,13 +157,9 @@ func (tracker *effectTracker) Clear(name string) {
 	_ = tracker.Set(name, nil)
 }
 
-func (tracker *effectTracker) Send(target *Address, message proto.Message) error {
+func (tracker *effectTracker) Send(target Address, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
-	}
-
-	if target == nil {
-		return errors.New("cannot send message to nil target")
 	}
 
 	packedState, err := marshall(message)
@@ -164,8 +167,12 @@ func (tracker *effectTracker) Send(target *Address, message proto.Message) error
 		return err
 	}
 
-	invocation := &FromFunction_Invocation{
-		Target:   target,
+	invocation := &internal.FromFunction_Invocation{
+		Target: &internal.Address{
+			Namespace: target.FunctionType.Namespace,
+			Type:      target.FunctionType.Type,
+			Id:        target.Id,
+		},
 		Argument: packedState,
 	}
 
@@ -174,10 +181,14 @@ func (tracker *effectTracker) Send(target *Address, message proto.Message) error
 }
 
 func (tracker *effectTracker) Reply(message proto.Message) error {
-	return tracker.Send(tracker.caller, message)
+	if tracker.caller == nil {
+		return errors.New("Cannot reply to nil caller")
+	}
+
+	return tracker.Send(*tracker.caller, message)
 }
 
-func (tracker *effectTracker) SendAfter(target *Address, duration time.Duration, message proto.Message) error {
+func (tracker *effectTracker) SendAfter(target Address, duration time.Duration, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -187,8 +198,12 @@ func (tracker *effectTracker) SendAfter(target *Address, duration time.Duration,
 		return err
 	}
 
-	delayedInvocation := &FromFunction_DelayedInvocation{
-		Target:    target,
+	delayedInvocation := &internal.FromFunction_DelayedInvocation{
+		Target: &internal.Address{
+			Namespace: target.FunctionType.Namespace,
+			Type:      target.FunctionType.Type,
+			Id:        target.Id,
+		},
 		DelayInMs: duration.Milliseconds(),
 		Argument:  packedMessage,
 	}
@@ -207,7 +222,7 @@ func (tracker *effectTracker) SendEgress(egress EgressIdentifier, message proto.
 		return err
 	}
 
-	egressMessage := &FromFunction_EgressMessage{
+	egressMessage := &internal.FromFunction_EgressMessage{
 		EgressNamespace: egress.EgressNamespace,
 		EgressType:      egress.EgressType,
 		Argument:        packedMessage,
@@ -217,8 +232,8 @@ func (tracker *effectTracker) SendEgress(egress EgressIdentifier, message proto.
 	return nil
 }
 
-func (tracker *effectTracker) fromFunction() (*FromFunction, error) {
-	var mutations []*FromFunction_PersistedValueMutation
+func (tracker *effectTracker) fromFunction() (*internal.FromFunction, error) {
+	var mutations []*internal.FromFunction_PersistedValueMutation
 	for name, state := range tracker.states {
 		if !state.updated {
 			continue
@@ -226,13 +241,13 @@ func (tracker *effectTracker) fromFunction() (*FromFunction, error) {
 
 		var err error
 		var bytes []byte
-		var mutationType FromFunction_PersistedValueMutation_MutationType
+		var mutationType internal.FromFunction_PersistedValueMutation_MutationType
 
 		if state.value == nil {
 			bytes = nil
-			mutationType = FromFunction_PersistedValueMutation_DELETE
+			mutationType = internal.FromFunction_PersistedValueMutation_DELETE
 		} else {
-			mutationType = FromFunction_PersistedValueMutation_MODIFY
+			mutationType = internal.FromFunction_PersistedValueMutation_MODIFY
 
 			bytes, err = proto.Marshal(state.value)
 			if err != nil {
@@ -240,7 +255,7 @@ func (tracker *effectTracker) fromFunction() (*FromFunction, error) {
 			}
 		}
 
-		mutation := &FromFunction_PersistedValueMutation{
+		mutation := &internal.FromFunction_PersistedValueMutation{
 			MutationType: mutationType,
 			StateName:    name,
 			StateValue:   bytes,
@@ -249,9 +264,9 @@ func (tracker *effectTracker) fromFunction() (*FromFunction, error) {
 		mutations = append(mutations, mutation)
 	}
 
-	return &FromFunction{
-		Response: &FromFunction_InvocationResult{
-			InvocationResult: &FromFunction_InvocationResponse{
+	return &internal.FromFunction{
+		Response: &internal.FromFunction_InvocationResult{
+			InvocationResult: &internal.FromFunction_InvocationResponse{
 				StateMutations:     mutations,
 				OutgoingMessages:   tracker.invocations,
 				DelayedInvocations: tracker.delayedInvocation,

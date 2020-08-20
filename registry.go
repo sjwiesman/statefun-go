@@ -9,6 +9,7 @@ import (
 	"github.com/valyala/bytebufferpool"
 	"log"
 	"net/http"
+	"statefun-go/internal"
 )
 
 // Keeps a mapping from FunctionType to stateful functions.
@@ -81,7 +82,7 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	_, _ = w.Write(bytes)
 }
 
-func getPayload(w http.ResponseWriter, req *http.Request) *ToFunction {
+func getPayload(w http.ResponseWriter, req *http.Request) *internal.ToFunction {
 	buffer := bytebufferpool.Get()
 	defer bytebufferpool.Put(buffer)
 
@@ -91,7 +92,7 @@ func getPayload(w http.ResponseWriter, req *http.Request) *ToFunction {
 		return nil
 	}
 
-	toFunction := &ToFunction{}
+	toFunction := &internal.ToFunction{}
 	err = proto.Unmarshal(buffer.Bytes(), toFunction)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -121,7 +122,7 @@ func validRequest(w http.ResponseWriter, req *http.Request) bool {
 	return true
 }
 
-func executeBatch(functions functions, ctx context.Context, request *ToFunction) (*FromFunction, error) {
+func executeBatch(functions functions, ctx context.Context, request *internal.ToFunction) (*internal.FromFunction, error) {
 	invocations := request.GetInvocation()
 	if invocations == nil {
 		return nil, errors.New("missing invocations for batch")
@@ -144,10 +145,20 @@ func executeBatch(functions functions, ctx context.Context, request *ToFunction)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			runtime.caller = invocation.Caller
+			if invocation.Caller == nil {
+				runtime.caller = nil
+			} else {
+				runtime.caller = &Address{
+					FunctionType: FunctionType{
+						Namespace: invocation.Caller.Namespace,
+						Type:      invocation.Caller.Type,
+					},
+					Id: invocation.Caller.Id,
+				}
+			}
 			err := function.Invoke(&runtime, (*invocation).Argument)
 			if err != nil {
-				return nil, fmt.Errorf("failed to execute function %s/%s\n%w", runtime.self.Namespace, runtime.self.Type, err)
+				return nil, fmt.Errorf("failed to execute function %s %w", runtime.self.String(), err)
 			}
 		}
 	}
