@@ -1,4 +1,4 @@
-package statefun
+package statefun_go
 
 import (
 	"context"
@@ -53,7 +53,7 @@ func (functions *functions) RegisterFunctionPointer(funcType FunctionType, funct
 }
 
 func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if !validateRequest(w, req) {
+	if !validRequest(w, req) {
 		return
 	}
 
@@ -73,6 +73,7 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	bytes, err := proto.Marshal(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Print(err)
 		return
 	}
 
@@ -100,7 +101,7 @@ func getPayload(w http.ResponseWriter, req *http.Request) *ToFunction {
 	return toFunction
 }
 
-func validateRequest(w http.ResponseWriter, req *http.Request) bool {
+func validRequest(w http.ResponseWriter, req *http.Request) bool {
 	if req.Method != "POST" {
 		http.Error(w, "invalid request method", http.StatusMethodNotAllowed)
 		return false

@@ -1,4 +1,4 @@
-package testing
+package statefun_go
 
 import (
 	"bytes"
@@ -10,51 +10,48 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"statefun-go/statefun"
 	"strings"
 	"testing"
 	"time"
 )
 
-var caller = statefun.Address{
+var caller = Address{
 	Namespace: "remote",
 	Type:      "caller",
 	Id:        "id2",
 }
 
-var egress = statefun.EgressIdentifier{EgressNamespace: "test", EgressType: "egress"}
+var egress = EgressIdentifier{EgressNamespace: "test", EgressType: "egress"}
+
+var serializedArgument any.Any
 
 var serializedGreeting any.Any
 
+var stateValue []byte
+
 //noinspection GoVetCopyLock
 func init() {
-	pointer, _ := ptypes.MarshalAny(&Greeting{Greeting: "Hello"})
+	pointer, _ := ptypes.MarshalAny(&Invoke{})
+	serializedArgument = *pointer
+
+	pointer, _ = ptypes.MarshalAny(&Greeting{Greeting: "Hello"})
 	serializedGreeting = *pointer
+
+	countAny, _ := ptypes.MarshalAny(&Counter{Count: 1})
+	stateValue, _ = proto.Marshal(countAny)
 }
 
 //noinspection GoVetCopyLock
 func TestFunctionHandler(t *testing.T) {
-	var stateValue []byte
-	if countAny, err := ptypes.MarshalAny(&Counter{Count: 1}); err != nil {
-		assert.Fail(t, "Failed to initialize counter")
-	} else if stateValue, err = proto.Marshal(countAny); err != nil {
-		assert.Fail(t, "Failed to initialize counter")
-	}
-
-	argument, err := ptypes.MarshalAny(&Invoke{})
-	if err != nil {
-		assert.Fail(t, "Failed to initialize argument")
-	}
-
-	toFunction := statefun.ToFunction{
-		Request: &statefun.ToFunction_Invocation_{
-			Invocation: &statefun.ToFunction_InvocationBatchRequest{
-				Target: &statefun.Address{
+	toFunction := ToFunction{
+		Request: &ToFunction_Invocation_{
+			Invocation: &ToFunction_InvocationBatchRequest{
+				Target: &Address{
 					Namespace: "remote",
 					Type:      "greeter",
 					Id:        "id",
 				},
-				State: []*statefun.ToFunction_PersistedValue{
+				State: []*ToFunction_PersistedValue{
 					{
 						StateName:  "modified-state",
 						StateValue: stateValue,
@@ -68,23 +65,23 @@ func TestFunctionHandler(t *testing.T) {
 						StateValue: stateValue,
 					},
 				},
-				Invocations: []*statefun.ToFunction_Invocation{
+				Invocations: []*ToFunction_Invocation{
 					{
-						Caller: &statefun.Address{
+						Caller: &Address{
 							Namespace: "remote",
 							Type:      "caller",
 							Id:        "id2",
 						},
-						Argument: argument,
+						Argument: &serializedArgument,
 					},
 				},
 			},
 		},
 	}
 
-	functions := statefun.NewFunctionRegistry()
+	functions := NewFunctionRegistry()
 
-	functions.RegisterFunction(statefun.FunctionType{
+	functions.RegisterFunction(FunctionType{
 		Namespace: "remote",
 		Type:      "greeter",
 	}, Greeter{})
@@ -98,7 +95,7 @@ func TestFunctionHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "received non-200 response")
 
-	var fromFunction statefun.FromFunction
+	var fromFunction FromFunction
 	respBytes, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 
@@ -106,7 +103,7 @@ func TestFunctionHandler(t *testing.T) {
 
 	response := fromFunction.GetInvocationResult()
 
-	mutations := map[string]*statefun.FromFunction_PersistedValueMutation{}
+	mutations := map[string]*FromFunction_PersistedValueMutation{}
 	for _, mutation := range response.StateMutations {
 		mutations[mutation.StateName] = mutation
 	}
@@ -114,7 +111,7 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Equal(t, 2, len(mutations), "wrong number of state mutations")
 
 	assert.Contains(t, mutations, "modified-state", "missing modified state")
-	assert.Equal(t, statefun.FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
+	assert.Equal(t, FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
 
 	var packagedState any.Any
 	if err := proto.Unmarshal(mutations["modified-state"].StateValue, &packagedState); err != nil {
@@ -129,7 +126,7 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Equal(t, int32(2), counterUpdate.Count, "wrong counter value")
 
 	assert.Contains(t, mutations, "deleted-state", "missing deleted state")
-	assert.Equal(t, statefun.FromFunction_PersistedValueMutation_DELETE, mutations["deleted-state"].MutationType, "wrong mutation type")
+	assert.Equal(t, FromFunction_PersistedValueMutation_DELETE, mutations["deleted-state"].MutationType, "wrong mutation type")
 
 	assert.Equal(t, 1, len(response.OutgoingMessages), "wrong number of outgoing messages")
 	assert.Equal(t, caller, *response.OutgoingMessages[0].Target, "wrong message target")
@@ -147,7 +144,7 @@ func TestFunctionHandler(t *testing.T) {
 }
 
 func TestValidation(t *testing.T) {
-	functions := statefun.NewFunctionRegistry()
+	functions := NewFunctionRegistry()
 	server := httptest.NewServer(functions)
 	defer server.Close()
 
@@ -166,7 +163,7 @@ func TestValidation(t *testing.T) {
 
 type Greeter struct{}
 
-func (f Greeter) Invoke(ctx statefun.StatefulFunctionIO, msg *any.Any) error {
+func (f Greeter) Invoke(ctx StatefulFunctionIO, msg *any.Any) error {
 	if err := ptypes.UnmarshalAny(msg, &Invoke{}); err != nil {
 		return err
 	}

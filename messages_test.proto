@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "statefun";
+option go_package = ".;statefun_go";
 
 message Invoke {
 }

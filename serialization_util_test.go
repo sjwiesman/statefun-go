@@ -1,4 +1,4 @@
-package statefun
+package statefun_go
 
 import (
 	"github.com/golang/protobuf/ptypes/any"
