@@ -1,4 +1,4 @@
-package statefun_go
+package internal
 
 import (
 	"github.com/golang/protobuf/ptypes/any"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestUnmarshalNil(t *testing.T) {
-	err := unmarshall(&anypb.Any{}, nil)
+	err := Unmarshall(&anypb.Any{}, nil)
 	if err == nil {
 		assert.Fail(t, "Unmarshal should fail on nil receiver")
 	}
@@ -21,7 +21,7 @@ func TestUnmarshalAny(t *testing.T) {
 	}
 	receiver := any.Any{}
 
-	err := unmarshall(&value, &receiver)
+	err := Unmarshall(&value, &receiver)
 
 	if err != nil {
 		t.Error(err)
@@ -36,7 +36,7 @@ func TestMarshalAny(t *testing.T) {
 		Value:   nil,
 	}
 
-	marshalled, err := marshall(value)
+	marshalled, err := Marshall(value)
 
 	if err != nil {
 		t.Error(err)
@@ -46,7 +46,7 @@ func TestMarshalAny(t *testing.T) {
 }
 
 func TestMarshalNil(t *testing.T) {
-	marshalled, err := marshall(nil)
+	marshalled, err := Marshall(nil)
 	if err != nil {
 		t.Error(err)
 	}

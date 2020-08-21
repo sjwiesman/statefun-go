@@ -21,7 +21,7 @@
 // 	protoc        v3.11.4
 // source: http-function.proto
 
-package internal
+package messages
 
 import (
 	proto "github.com/golang/protobuf/proto"

@@ -1,4 +1,4 @@
-package statefun_go
+package statefun
 
 import (
 	"bytes"
@@ -10,19 +10,21 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"statefun-go/internal"
+	"statefun-go/pkg/flink/statefun/internal/messages"
+	"statefun-go/pkg/flink/statefun/internal/test"
+	"statefun-go/pkg/flink/statefun/io"
 	"strings"
 	"testing"
 	"time"
 )
 
-var caller = internal.Address{
+var caller = messages.Address{
 	Namespace: "remote",
 	Type:      "caller",
 	Id:        "id2",
 }
 
-var egress = EgressIdentifier{EgressNamespace: "test", EgressType: "egress"}
+var egress = io.EgressIdentifier{EgressNamespace: "test", EgressType: "egress"}
 
 var serializedArgument any.Any
 
@@ -32,27 +34,27 @@ var stateValue []byte
 
 //noinspection GoVetCopyLock
 func init() {
-	pointer, _ := ptypes.MarshalAny(&internal.Invoke{})
+	pointer, _ := ptypes.MarshalAny(&test.Invoke{})
 	serializedArgument = *pointer
 
-	pointer, _ = ptypes.MarshalAny(&internal.Greeting{Greeting: "Hello"})
+	pointer, _ = ptypes.MarshalAny(&test.Greeting{Greeting: "Hello"})
 	serializedGreeting = *pointer
 
-	countAny, _ := ptypes.MarshalAny(&internal.Counter{Count: 1})
+	countAny, _ := ptypes.MarshalAny(&test.Counter{Count: 1})
 	stateValue, _ = proto.Marshal(countAny)
 }
 
 //noinspection GoVetCopyLock
 func TestFunctionHandler(t *testing.T) {
-	toFunction := internal.ToFunction{
-		Request: &internal.ToFunction_Invocation_{
-			Invocation: &internal.ToFunction_InvocationBatchRequest{
-				Target: &internal.Address{
+	toFunction := messages.ToFunction{
+		Request: &messages.ToFunction_Invocation_{
+			Invocation: &messages.ToFunction_InvocationBatchRequest{
+				Target: &messages.Address{
 					Namespace: "remote",
 					Type:      "greeter",
 					Id:        "id",
 				},
-				State: []*internal.ToFunction_PersistedValue{
+				State: []*messages.ToFunction_PersistedValue{
 					{
 						StateName:  "modified-state",
 						StateValue: stateValue,
@@ -66,9 +68,9 @@ func TestFunctionHandler(t *testing.T) {
 						StateValue: stateValue,
 					},
 				},
-				Invocations: []*internal.ToFunction_Invocation{
+				Invocations: []*messages.ToFunction_Invocation{
 					{
-						Caller: &internal.Address{
+						Caller: &messages.Address{
 							Namespace: "remote",
 							Type:      "caller",
 							Id:        "id2",
@@ -96,7 +98,7 @@ func TestFunctionHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "received non-200 response")
 
-	var fromFunction internal.FromFunction
+	var fromFunction messages.FromFunction
 	respBytes, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 
@@ -104,7 +106,7 @@ func TestFunctionHandler(t *testing.T) {
 
 	response := fromFunction.GetInvocationResult()
 
-	mutations := map[string]*internal.FromFunction_PersistedValueMutation{}
+	mutations := map[string]*messages.FromFunction_PersistedValueMutation{}
 	for _, mutation := range response.StateMutations {
 		mutations[mutation.StateName] = mutation
 	}
@@ -112,14 +114,14 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Equal(t, 2, len(mutations), "wrong number of state mutations")
 
 	assert.Contains(t, mutations, "modified-state", "missing modified state")
-	assert.Equal(t, internal.FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
+	assert.Equal(t, messages.FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
 
 	var packagedState any.Any
 	if err := proto.Unmarshal(mutations["modified-state"].StateValue, &packagedState); err != nil {
 		assert.Fail(t, err.Error())
 	}
 
-	var counterUpdate internal.Counter
+	var counterUpdate test.Counter
 	if err := ptypes.UnmarshalAny(&packagedState, &counterUpdate); err != nil {
 		assert.Fail(t, err.Error())
 	}
@@ -127,7 +129,7 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Equal(t, int32(2), counterUpdate.Count, "wrong counter value")
 
 	assert.Contains(t, mutations, "deleted-state", "missing deleted state")
-	assert.Equal(t, internal.FromFunction_PersistedValueMutation_DELETE, mutations["deleted-state"].MutationType, "wrong mutation type")
+	assert.Equal(t, messages.FromFunction_PersistedValueMutation_DELETE, mutations["deleted-state"].MutationType, "wrong mutation type")
 
 	assert.Equal(t, 1, len(response.OutgoingMessages), "wrong number of outgoing messages")
 	assert.Equal(t, caller, *response.OutgoingMessages[0].Target, "wrong message target")
@@ -164,41 +166,41 @@ func TestValidation(t *testing.T) {
 
 type Greeter struct{}
 
-func (f Greeter) Invoke(io StatefulFunctionIO, msg *any.Any) error {
-	if err := ptypes.UnmarshalAny(msg, &internal.Invoke{}); err != nil {
+func (f Greeter) Invoke(runtime StatefulFunctionRuntime, msg *any.Any) error {
+	if err := ptypes.UnmarshalAny(msg, &test.Invoke{}); err != nil {
 		return err
 	}
 
-	var count internal.Counter
-	if err := io.Get("modified-state", &count); err != nil {
+	var count test.Counter
+	if err := runtime.Get("modified-state", &count); err != nil {
 		return err
 	}
 
 	count.Count += 1
 
-	greeting := &internal.Greeting{
+	greeting := &test.Greeting{
 		Greeting: "Hello",
 	}
 
-	if err := io.Reply(greeting); err != nil {
+	if err := runtime.Reply(greeting); err != nil {
 		return err
 	}
 
-	if err := io.SendAfter(*io.Caller(), time.Duration(6e+10), greeting); err != nil {
+	if err := runtime.SendAfter(*runtime.Caller(), time.Duration(6e+10), greeting); err != nil {
 		return err
 	}
 
-	if err := io.SendEgress(egress, greeting); err != nil {
+	if err := runtime.SendEgress(egress, greeting); err != nil {
 		return err
 	}
 
-	if err := io.Set("modified-state", &count); err != nil {
+	if err := runtime.Set("modified-state", &count); err != nil {
 		return err
 	}
 
-	io.Clear("deleted-state")
+	runtime.Clear("deleted-state")
 
-	if err := io.Get("read-only-state", &count); err != nil {
+	if err := runtime.Get("read-only-state", &count); err != nil {
 		return err
 	}
 

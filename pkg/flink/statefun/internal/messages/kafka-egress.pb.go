@@ -21,7 +21,7 @@
 // 	protoc        v3.11.4
 // source: kafka-egress.proto
 
-package internal
+package messages
 
 import (
 	proto "github.com/golang/protobuf/proto"

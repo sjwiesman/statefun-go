@@ -1,4 +1,4 @@
-package statefun_go
+package statefun
 
 import (
 	"context"
@@ -9,8 +9,10 @@ import (
 	"github.com/valyala/bytebufferpool"
 	"log"
 	"net/http"
-	"statefun-go/internal"
+	"statefun-go/pkg/flink/statefun/internal/messages"
 )
+
+type StatefulFunctionPointer func(ctx StatefulFunctionRuntime, message *any.Any) error
 
 // Keeps a mapping from FunctionType to stateful functions.
 // Use this together with an http endpoint to serve
@@ -22,15 +24,15 @@ type FunctionRegistry interface {
 	RegisterFunction(funcType FunctionType, function StatefulFunction)
 
 	// Registers a function pointer as a StatefulFunction under a FunctionType.
-	RegisterFunctionPointer(funcType FunctionType, function func(ctx StatefulFunctionIO, message *any.Any) error)
+	RegisterFunctionPointer(funcType FunctionType, function StatefulFunctionPointer)
 }
 
 type pointer struct {
-	f func(ctx StatefulFunctionIO, message *any.Any) error
+	f func(ctx StatefulFunctionRuntime, message *any.Any) error
 }
 
-func (pointer *pointer) Invoke(ctx StatefulFunctionIO, message *any.Any) error {
-	return pointer.f(ctx, message)
+func (pointer *pointer) Invoke(runtime StatefulFunctionRuntime, message *any.Any) error {
+	return pointer.f(runtime, message)
 }
 
 type functions struct {
@@ -47,7 +49,7 @@ func (functions *functions) RegisterFunction(funcType FunctionType, function Sta
 	functions.module[funcType] = function
 }
 
-func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function func(ctx StatefulFunctionIO, message *any.Any) error) {
+func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function StatefulFunctionPointer) {
 	functions.module[funcType] = &pointer{
 		f: function,
 	}
@@ -82,7 +84,7 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	_, _ = w.Write(bytes)
 }
 
-func getPayload(w http.ResponseWriter, req *http.Request) *internal.ToFunction {
+func getPayload(w http.ResponseWriter, req *http.Request) *messages.ToFunction {
 	buffer := bytebufferpool.Get()
 	defer bytebufferpool.Put(buffer)
 
@@ -92,7 +94,7 @@ func getPayload(w http.ResponseWriter, req *http.Request) *internal.ToFunction {
 		return nil
 	}
 
-	toFunction := &internal.ToFunction{}
+	toFunction := &messages.ToFunction{}
 	err = proto.Unmarshal(buffer.Bytes(), toFunction)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -122,7 +124,7 @@ func validRequest(w http.ResponseWriter, req *http.Request) bool {
 	return true
 }
 
-func executeBatch(functions functions, ctx context.Context, request *internal.ToFunction) (*internal.FromFunction, error) {
+func executeBatch(functions functions, ctx context.Context, request *messages.ToFunction) (*messages.FromFunction, error) {
 	invocations := request.GetInvocation()
 	if invocations == nil {
 		return nil, errors.New("missing invocations for batch")

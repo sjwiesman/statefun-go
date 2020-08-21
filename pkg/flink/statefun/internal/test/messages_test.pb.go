@@ -4,7 +4,7 @@
 // 	protoc        v3.12.3
 // source: messages_test.proto
 
-package internal
+package test
 
 import (
 	proto "github.com/golang/protobuf/proto"

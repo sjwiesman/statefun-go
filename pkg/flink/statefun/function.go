@@ -1,4 +1,4 @@
-package statefun_go
+package statefun
 
 import (
 	any "google.golang.org/protobuf/types/known/anypb"
@@ -25,5 +25,5 @@ import (
 type StatefulFunction interface {
 
 	// Invoke this function with the given input.
-	Invoke(io StatefulFunctionIO, message *any.Any) error
+	Invoke(runtime StatefulFunctionRuntime, message *any.Any) error
 }

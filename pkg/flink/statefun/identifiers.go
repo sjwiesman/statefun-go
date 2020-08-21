@@ -1,4 +1,4 @@
-package statefun_go
+package statefun
 
 import "fmt"
 
@@ -25,14 +25,4 @@ type Address struct {
 
 func (address *Address) String() string {
 	return fmt.Sprintf("%s/%s", address.FunctionType.String(), address.Id)
-}
-
-// A reference to an egress, consisting of a namespace and a name.
-type EgressIdentifier struct {
-	EgressNamespace string
-	EgressType      string
-}
-
-func (egress *EgressIdentifier) String() string {
-	return fmt.Sprintf("%s/%s", egress.EgressNamespace, egress.EgressType)
 }
