@@ -6,6 +6,7 @@
 *.dylib
 *.idea/*
 
+examples/checkpoint-dir/
 test/test
 # Test binary, built with `go test -c`
 *.test
