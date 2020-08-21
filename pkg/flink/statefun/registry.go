@@ -11,8 +11,6 @@ import (
 	"net/http"
 )
 
-type StatefulFunctionPointer func(ctx context.Context, runtime StatefulFunctionRuntime, message *any.Any) error
-
 // Keeps a mapping from FunctionType to stateful functions
 // and serves them to the Flink runtime.
 //
@@ -52,15 +50,19 @@ type FunctionRegistry interface {
 	RegisterFunction(funcType FunctionType, function StatefulFunction)
 
 	// Registers a function pointer as a StatefulFunction under a FunctionType.
-	RegisterFunctionPointer(funcType FunctionType, function StatefulFunctionPointer)
+	RegisterFunctionPointer(
+		funcType FunctionType,
+		function func(context.Context, StatefulFunctionRuntime, *any.Any) error)
 }
 
-type pointer struct {
-	f func(ctx context.Context, runtime StatefulFunctionRuntime, message *any.Any) error
-}
+// The statefulFunctionPointer type is an adapter to allow the use of
+// ordinary functions as StatefulFunction. If f is a function
+// with the appropriate signature, statefulFunctionPointer(f) is a
+// Handler that calls f.
+type statefulFunctionPointer func(context.Context, StatefulFunctionRuntime, *any.Any) error
 
-func (pointer *pointer) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *any.Any) error {
-	return pointer.f(ctx, runtime, msg)
+func (f statefulFunctionPointer) Invoke(ctx context.Context, rt StatefulFunctionRuntime, msg *any.Any) error {
+	return f(ctx, rt, msg)
 }
 
 type functions struct {
@@ -78,11 +80,12 @@ func (functions *functions) RegisterFunction(funcType FunctionType, function Sta
 	functions.module[funcType] = function
 }
 
-func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function StatefulFunctionPointer) {
+func (functions *functions) RegisterFunctionPointer(
+	funcType FunctionType,
+	function func(context.Context, StatefulFunctionRuntime, *any.Any) error) {
+
 	log.Printf("registering stateful function %s", funcType.String())
-	functions.module[funcType] = &pointer{
-		f: function,
-	}
+	functions.module[funcType] = statefulFunctionPointer(function)
 }
 
 func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
