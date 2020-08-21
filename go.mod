@@ -1,4 +1,4 @@
-module statefun-go
+module github.com/sjwiesman/statefun-go
 
 go 1.14
 

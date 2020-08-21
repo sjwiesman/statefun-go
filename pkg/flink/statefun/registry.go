@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 	"github.com/valyala/bytebufferpool"
 	"log"
 	"net/http"
-	"statefun-go/pkg/flink/statefun/internal/messages"
 )
 
 type StatefulFunctionPointer func(ctx StatefulFunctionRuntime, message *any.Any) error

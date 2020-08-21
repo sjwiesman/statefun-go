@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
-	"statefun-go/pkg/flink/statefun/internal"
-	"statefun-go/pkg/flink/statefun/internal/messages"
-	"statefun-go/pkg/flink/statefun/io"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/io"
 	"time"
 )
 

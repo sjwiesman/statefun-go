@@ -3,8 +3,8 @@ package io
 import (
 	"errors"
 	"github.com/golang/protobuf/proto"
-	"statefun-go/pkg/flink/statefun/internal"
-	"statefun-go/pkg/flink/statefun/internal/messages"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 )
 
 // Egress message that will be

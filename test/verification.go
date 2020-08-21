@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes/any"
 	"net/http"
-	"statefun-go/pkg/flink/statefun"
-	"statefun-go/pkg/flink/statefun/io"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/io"
 )
 
 func randToken(n int) string {
