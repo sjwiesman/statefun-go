@@ -15,11 +15,38 @@ import (
 
 type StatefulFunctionPointer func(ctx context.Context, runtime StatefulFunctionRuntime, message *any.Any) error
 
-// Keeps a mapping from FunctionType to stateful functions.
-// Use this together with an http endpoint to serve
-// StatefulFunction implementations.
+// Keeps a mapping from FunctionType to stateful functions
+// and serves them to the Flink runtime.
+//
+// HTTP Endpoint
+//
+//    import "net/http"
+//
+//	  func main() {
+//    	registry := NewFunctionRegistry()
+//		registry.RegisterFunction(greeterType, GreeterFunction{})
+//
+//	  	http.Handle("/service", registry)
+//	  	_ = http.ListenAndServe(":8000", nil)
+//	  }
+//
+// AWS Lambda
+//
+//    import "github.com/aws/aws-lambda"
+//
+//	  func main() {
+//    	registry := NewFunctionRegistry()
+//		registry.RegisterFunction(greeterType, GreeterFunction{})
+//
+//		lambda.StartHandler(registry)
+//	  }
 type FunctionRegistry interface {
+	// Handler for processing runtime messages from
+	// an http endpoint
 	http.Handler
+
+	// Handler for processing arbitrary payloads.
+	Invoke(ctx context.Context, payload []byte) ([]byte, error)
 
 	// Register a StatefulFunction under a FunctionType.
 	RegisterFunction(funcType FunctionType, function StatefulFunction)
@@ -63,48 +90,36 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	toFunction := getPayload(w, req)
-	if toFunction == nil {
-		return
-	}
-
-	response, err := executeBatch(functions, req.Context(), toFunction)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		log.Printf("error processing request %s", proto.MarshalTextString(toFunction))
-		log.Print(err)
-		return
-	}
-
-	bytes, err := proto.Marshal(response)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		log.Print(err)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(bytes)
-}
-
-func getPayload(w http.ResponseWriter, req *http.Request) *messages.ToFunction {
 	buffer := bytebufferpool.Get()
 	defer bytebufferpool.Put(buffer)
 
 	_, err := buffer.ReadFrom(req.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return nil
 	}
 
-	toFunction := &messages.ToFunction{}
-	err = proto.Unmarshal(buffer.Bytes(), toFunction)
+	bytes, err := functions.Invoke(req.Context(), buffer.Bytes())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return nil
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Print(err)
 	}
 
-	return toFunction
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(bytes)
+}
+
+func (functions functions) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
+	toFunction := &messages.ToFunction{}
+	if err := proto.Unmarshal(payload, toFunction); err != nil {
+		return nil, fmt.Errorf("failed to unmarhsal payload %w", err)
+	}
+
+	fromFunction, err := executeBatch(functions, ctx, toFunction)
+	if err != nil {
+		return nil, fmt.Errorf("error processing request %s %w", proto.MarshalTextString(toFunction), err)
+	}
+
+	return proto.Marshal(fromFunction)
 }
 
 func validRequest(w http.ResponseWriter, req *http.Request) bool {
@@ -157,7 +172,10 @@ func executeBatch(functions functions, ctx context.Context, request *messages.To
 		return nil, errors.New(funcType.String() + " does not exist")
 	}
 
-	runtime := newRuntime(invocations.State)
+	runtime, err := newRuntime(invocations.State)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup runtime for batch %w", err)
+	}
 
 	self := fromInternal(invocations.Target)
 	ctx = context.WithValue(ctx, selfKey, self)

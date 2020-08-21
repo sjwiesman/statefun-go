@@ -12,8 +12,7 @@ import (
 )
 
 // Provides the effect tracker for a single StatefulFunction instance.
-// The invocation's io context may be used to obtain the Address of itself or the calling
-// function (if the function was invoked by another function), or used to invoke other functions
+// The invocation's io context may be used to invoke other functions
 // (including itself) and to send messages to egresses. Additionally, it supports
 // reading and writing persisted state values with exactly-once guarantees provided
 // by the runtime.
@@ -68,7 +67,7 @@ type runtime struct {
 
 // Create a new runtime based on the target function
 // and set of initial states.
-func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) *runtime {
+func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) (*runtime, error) {
 	ctx := &runtime{
 		states:            map[string]*state{},
 		invocations:       []*messages.FromFunction_Invocation{},
@@ -80,7 +79,7 @@ func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) *runtime 
 		value := any.Any{}
 		err := proto.Unmarshal(persistedValue.StateValue, &value)
 		if err != nil {
-
+			return nil, err
 		}
 
 		ctx.states[persistedValue.StateName] = &state{
@@ -89,7 +88,7 @@ func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) *runtime 
 		}
 	}
 
-	return ctx
+	return ctx, nil
 }
 
 func (tracker *runtime) Get(name string, state proto.Message) error {
