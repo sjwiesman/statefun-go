@@ -157,7 +157,7 @@ func executeBatch(functions functions, ctx context.Context, request *messages.To
 		return nil, errors.New(funcType.String() + " does not exist")
 	}
 
-	runtime := newStateFunIO(invocations.State)
+	runtime := newRuntime(invocations.State)
 
 	self := fromInternal(invocations.Target)
 	ctx = context.WithValue(ctx, selfKey, self)

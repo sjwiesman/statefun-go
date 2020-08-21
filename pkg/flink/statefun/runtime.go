@@ -68,7 +68,7 @@ type runtime struct {
 
 // Create a new runtime based on the target function
 // and set of initial states.
-func newStateFunIO(persistedValues []*messages.ToFunction_PersistedValue) *runtime {
+func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) *runtime {
 	ctx := &runtime{
 		states:            map[string]*state{},
 		invocations:       []*messages.FromFunction_Invocation{},

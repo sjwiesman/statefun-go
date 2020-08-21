@@ -8,7 +8,6 @@ import (
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/io"
-	"google.golang.org/protobuf/types/known/anypb"
 	"net/http"
 )
 
@@ -22,7 +21,7 @@ func randToken(n int) string {
 
 type CounterFunction struct{}
 
-func (c CounterFunction) Invoke(ctx context.Context, runtime statefun.StatefulFunctionRuntime, msg *anypb.Any) error {
+func (c CounterFunction) Invoke(ctx context.Context, runtime statefun.StatefulFunctionRuntime, _ *any.Any) error {
 	var count InvokeCount
 	if err := runtime.Get("invoke_count", &count); err != nil {
 		return fmt.Errorf("unable to deserialize invoke_count %w", err)
