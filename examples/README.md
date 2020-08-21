@@ -17,6 +17,6 @@ docker-compose up -d
 Then, to see the example in actions, see what comes out of the topic `greetings`:
 
 ```
-docker-compose logs -f event-generator 
+docker-compose exec kafka-broker kafka-console-consumer.sh --bootstrap-server kafka-broker:9092 --from-beginning --topic greetings
 ```
 
