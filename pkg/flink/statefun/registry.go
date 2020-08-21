@@ -46,10 +46,12 @@ func NewFunctionRegistry() FunctionRegistry {
 }
 
 func (functions *functions) RegisterFunction(funcType FunctionType, function StatefulFunction) {
+	log.Printf("registering stateful function %s", funcType.String())
 	functions.module[funcType] = function
 }
 
 func (functions *functions) RegisterFunctionPointer(funcType FunctionType, function StatefulFunctionPointer) {
+	log.Printf("registering stateful function %s", funcType.String())
 	functions.module[funcType] = &pointer{
 		f: function,
 	}
