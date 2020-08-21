@@ -1,8 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/any"
+	"google.golang.org/protobuf/types/known/anypb"
 	"net/http"
 
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun"
@@ -16,7 +17,7 @@ var egressId = io.EgressIdentifier{
 
 type Greeter struct{}
 
-func (greeter Greeter) Invoke(runtime statefun.StatefulFunctionRuntime, _ *any.Any) error {
+func (greeter Greeter) Invoke(ctx context.Context, runtime statefun.StatefulFunctionRuntime, _ *anypb.Any) error {
 	var seen SeenCount
 	if err := runtime.Get("seen_count", &seen); err != nil {
 		return err
@@ -28,11 +29,12 @@ func (greeter Greeter) Invoke(runtime statefun.StatefulFunctionRuntime, _ *any.A
 		return err
 	}
 
-	response := computeGreeting(runtime.Self().Id, seen.Seen)
+	self := statefun.Self(ctx)
+	response := computeGreeting(self.Id, seen.Seen)
 
 	record := io.KafkaRecord{
 		Topic: "greetings",
-		Key:   runtime.Self().Id,
+		Key:   statefun.Self(ctx).Id,
 		Value: response,
 	}
 

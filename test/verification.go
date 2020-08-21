@@ -1,13 +1,15 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"github.com/golang/protobuf/ptypes/any"
-	"net/http"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/io"
+	"google.golang.org/protobuf/types/known/anypb"
+	"net/http"
 )
 
 func randToken(n int) string {
@@ -20,7 +22,7 @@ func randToken(n int) string {
 
 type CounterFunction struct{}
 
-func (c CounterFunction) Invoke(runtime statefun.StatefulFunctionRuntime, _ *any.Any) error {
+func (c CounterFunction) Invoke(ctx context.Context, runtime statefun.StatefulFunctionRuntime, msg *anypb.Any) error {
 	var count InvokeCount
 	if err := runtime.Get("invoke_count", &count); err != nil {
 		return fmt.Errorf("unable to deserialize invoke_count %w", err)
@@ -34,10 +36,10 @@ func (c CounterFunction) Invoke(runtime statefun.StatefulFunctionRuntime, _ *any
 
 	response := &InvokeResult{
 		InvokeCount: count.Count,
-		Id:          runtime.Self().Id,
+		Id:          statefun.Self(ctx).Id,
 	}
 
-	target := statefun.Address{
+	target := &statefun.Address{
 		FunctionType: statefun.FunctionType{
 			Namespace: "org.apache.flink.statefun.e2e.remote",
 			Type:      "forward-function",
@@ -48,7 +50,7 @@ func (c CounterFunction) Invoke(runtime statefun.StatefulFunctionRuntime, _ *any
 	return runtime.Send(target, response)
 }
 
-func ForwardFunction(runtime statefun.StatefulFunctionRuntime, msg *any.Any) error {
+func ForwardFunction(ctx context.Context, runtime statefun.StatefulFunctionRuntime, msg *any.Any) error {
 	egress := io.EgressIdentifier{
 		EgressNamespace: "org.apache.flink.statefun.e2e.remote",
 		EgressType:      "invoke-results",
@@ -56,7 +58,7 @@ func ForwardFunction(runtime statefun.StatefulFunctionRuntime, msg *any.Any) err
 
 	record := io.KafkaRecord{
 		Topic: "invoke-results",
-		Key:   runtime.Self().Id,
+		Key:   statefun.Self(ctx).Id,
 		Value: msg,
 	}
 

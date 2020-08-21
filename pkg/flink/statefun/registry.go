@@ -8,11 +8,12 @@ import (
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 	"github.com/valyala/bytebufferpool"
+	"google.golang.org/protobuf/types/known/anypb"
 	"log"
 	"net/http"
 )
 
-type StatefulFunctionPointer func(ctx StatefulFunctionRuntime, message *any.Any) error
+type StatefulFunctionPointer func(ctx context.Context, runtime StatefulFunctionRuntime, message *any.Any) error
 
 // Keeps a mapping from FunctionType to stateful functions.
 // Use this together with an http endpoint to serve
@@ -28,11 +29,11 @@ type FunctionRegistry interface {
 }
 
 type pointer struct {
-	f func(ctx StatefulFunctionRuntime, message *any.Any) error
+	f func(ctx context.Context, runtime StatefulFunctionRuntime, message *any.Any) error
 }
 
-func (pointer *pointer) Invoke(runtime StatefulFunctionRuntime, message *any.Any) error {
-	return pointer.f(runtime, message)
+func (pointer *pointer) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *anypb.Any) error {
+	return pointer.f(ctx, runtime, msg)
 }
 
 type functions struct {
@@ -126,6 +127,20 @@ func validRequest(w http.ResponseWriter, req *http.Request) bool {
 	return true
 }
 
+func fromInternal(address *messages.Address) *Address {
+	if address == nil {
+		return nil
+	}
+
+	return &Address{
+		FunctionType: FunctionType{
+			Namespace: address.Namespace,
+			Type:      address.Type,
+		},
+		Id: address.Id,
+	}
+}
+
 func executeBatch(functions functions, ctx context.Context, request *messages.ToFunction) (*messages.FromFunction, error) {
 	invocations := request.GetInvocation()
 	if invocations == nil {
@@ -142,27 +157,20 @@ func executeBatch(functions functions, ctx context.Context, request *messages.To
 		return nil, errors.New(funcType.String() + " does not exist")
 	}
 
-	runtime := newStateFunIO(invocations.Target, invocations.State)
+	runtime := newStateFunIO(invocations.State)
 
+	self := fromInternal(invocations.Target)
+	ctx = context.WithValue(ctx, selfKey, self)
 	for _, invocation := range invocations.Invocations {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			if invocation.Caller == nil {
-				runtime.caller = nil
-			} else {
-				runtime.caller = &Address{
-					FunctionType: FunctionType{
-						Namespace: invocation.Caller.Namespace,
-						Type:      invocation.Caller.Type,
-					},
-					Id: invocation.Caller.Id,
-				}
-			}
-			err := function.Invoke(runtime, (*invocation).Argument)
+			caller := fromInternal(invocation.Caller)
+			ctx = context.WithValue(ctx, callerKey, caller)
+			err := function.Invoke(ctx, runtime, (*invocation).Argument)
 			if err != nil {
-				return nil, fmt.Errorf("failed to execute function %s %w", runtime.self.String(), err)
+				return nil, fmt.Errorf("failed to execute function %s %w", self.String(), err)
 			}
 		}
 	}

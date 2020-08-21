@@ -18,14 +18,6 @@ import (
 // reading and writing persisted state values with exactly-once guarantees provided
 // by the runtime.
 type StatefulFunctionRuntime interface {
-	// Self returns the address of the current
-	// function instance under evaluation
-	Self() Address
-
-	// Caller returns the address of the caller function.
-	// The caller may be nil if the message
-	// was sent directly from an ingress
-	Caller() *Address
 
 	// Get retrieves the state for the given name and
 	// unmarshalls the encoded value contained into the provided message state.
@@ -43,20 +35,14 @@ type StatefulFunctionRuntime interface {
 
 	// Invokes another function with an input, identified by the target function's Address
 	// and marshals the given message into an any.Any.
-	Send(target Address, message proto.Message) error
-
-	// Invokes the calling function of the current invocation under execution. This has the same effect
-	// as calling Send with the address obtained from Caller, and
-	// will not work if the current function was not invoked by another function.
-	// This method marshals the given message into an any.Any.
-	Reply(message proto.Message) error
+	Send(target *Address, message proto.Message) error
 
 	// Invokes another function with an input, identified by the target function's
 	// FunctionType and unique id after a specified delay. This method is durable
 	// and as such, the message will not be lost if the system experiences
 	// downtime between when the message is sent and the end of the duration.
 	// This method marshals the given message into an any.Any.
-	SendAfter(target Address, duration time.Duration, message proto.Message) error
+	SendAfter(target *Address, duration time.Duration, message proto.Message) error
 
 	// Sends an output to an EgressIdentifier.
 	// This method marshals the given message into an any.Any.
@@ -74,8 +60,6 @@ type state struct {
 // It tracks all responses that will be sent back to the
 // Flink runtime after the full batch has been executed.
 type runtime struct {
-	self              Address
-	caller            *Address
 	states            map[string]*state
 	invocations       []*messages.FromFunction_Invocation
 	delayedInvocation []*messages.FromFunction_DelayedInvocation
@@ -84,16 +68,8 @@ type runtime struct {
 
 // Create a new runtime based on the target function
 // and set of initial states.
-func newStateFunIO(self *messages.Address, persistedValues []*messages.ToFunction_PersistedValue) *runtime {
+func newStateFunIO(persistedValues []*messages.ToFunction_PersistedValue) *runtime {
 	ctx := &runtime{
-		self: Address{
-			FunctionType: FunctionType{
-				Namespace: self.Namespace,
-				Type:      self.Type,
-			},
-			Id: self.Id,
-		},
-		caller:            nil,
 		states:            map[string]*state{},
 		invocations:       []*messages.FromFunction_Invocation{},
 		delayedInvocation: []*messages.FromFunction_DelayedInvocation{},
@@ -114,14 +90,6 @@ func newStateFunIO(self *messages.Address, persistedValues []*messages.ToFunctio
 	}
 
 	return ctx
-}
-
-func (tracker *runtime) Self() Address {
-	return tracker.self
-}
-
-func (tracker *runtime) Caller() *Address {
-	return tracker.caller
 }
 
 func (tracker *runtime) Get(name string, state proto.Message) error {
@@ -159,7 +127,7 @@ func (tracker *runtime) Clear(name string) {
 	_ = tracker.Set(name, nil)
 }
 
-func (tracker *runtime) Send(target Address, message proto.Message) error {
+func (tracker *runtime) Send(target *Address, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}
@@ -182,15 +150,7 @@ func (tracker *runtime) Send(target Address, message proto.Message) error {
 	return nil
 }
 
-func (tracker *runtime) Reply(message proto.Message) error {
-	if tracker.caller == nil {
-		return errors.New("cannot reply to nil caller")
-	}
-
-	return tracker.Send(*tracker.caller, message)
-}
-
-func (tracker *runtime) SendAfter(target Address, duration time.Duration, message proto.Message) error {
+func (tracker *runtime) SendAfter(target *Address, duration time.Duration, message proto.Message) error {
 	if message == nil {
 		return errors.New("cannot send nil message to function")
 	}

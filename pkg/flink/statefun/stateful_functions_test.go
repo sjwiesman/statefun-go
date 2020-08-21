@@ -2,6 +2,7 @@ package statefun
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -10,6 +11,7 @@ import (
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/test"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/io"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/anypb"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -166,7 +168,7 @@ func TestValidation(t *testing.T) {
 
 type Greeter struct{}
 
-func (f Greeter) Invoke(runtime StatefulFunctionRuntime, msg *any.Any) error {
+func (f Greeter) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *anypb.Any) error {
 	if err := ptypes.UnmarshalAny(msg, &test.Invoke{}); err != nil {
 		return err
 	}
@@ -182,11 +184,12 @@ func (f Greeter) Invoke(runtime StatefulFunctionRuntime, msg *any.Any) error {
 		Greeting: "Hello",
 	}
 
-	if err := runtime.Reply(greeting); err != nil {
+	caller := Caller(ctx)
+	if err := runtime.Send(caller, greeting); err != nil {
 		return err
 	}
 
-	if err := runtime.SendAfter(*runtime.Caller(), time.Duration(6e+10), greeting); err != nil {
+	if err := runtime.SendAfter(caller, time.Duration(6e+10), greeting); err != nil {
 		return err
 	}
 
