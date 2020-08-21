@@ -163,7 +163,7 @@ func TestValidation(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "incorrect validation code on missing content")
 
 	resp, _ = http.Post(server.URL, "application/octet-stream", strings.NewReader("bad content"))
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode, "incorrect validation code on malformed content")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "incorrect validation code on malformed content")
 }
 
 type Greeter struct{}

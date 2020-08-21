@@ -2,13 +2,11 @@ package statefun
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/errors"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 	"github.com/valyala/bytebufferpool"
-	"google.golang.org/protobuf/types/known/anypb"
 	"log"
 	"net/http"
 )
@@ -59,7 +57,7 @@ type pointer struct {
 	f func(ctx context.Context, runtime StatefulFunctionRuntime, message *any.Any) error
 }
 
-func (pointer *pointer) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *anypb.Any) error {
+func (pointer *pointer) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *any.Any) error {
 	return pointer.f(ctx, runtime, msg)
 }
 
@@ -100,7 +98,7 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	bytes, err := functions.Invoke(req.Context(), buffer.Bytes())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), errors.ToCode(err))
 		log.Print(err)
 	}
 
@@ -111,12 +109,12 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func (functions functions) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
 	toFunction := &messages.ToFunction{}
 	if err := proto.Unmarshal(payload, toFunction); err != nil {
-		return nil, fmt.Errorf("failed to unmarhsal payload %w", err)
+		return nil, errors.BadRequest("failed to unmarshal payload %w", err)
 	}
 
 	fromFunction, err := executeBatch(functions, ctx, toFunction)
 	if err != nil {
-		return nil, fmt.Errorf("error processing request %s %w", proto.MarshalTextString(toFunction), err)
+		return nil, errors.Wrap(err, "error processing request %s", proto.MarshalTextString(toFunction))
 	}
 
 	return proto.Marshal(fromFunction)
@@ -159,7 +157,7 @@ func fromInternal(address *messages.Address) *Address {
 func executeBatch(functions functions, ctx context.Context, request *messages.ToFunction) (*messages.FromFunction, error) {
 	invocations := request.GetInvocation()
 	if invocations == nil {
-		return nil, errors.New("missing invocations for batch")
+		return nil, errors.BadRequest("missing invocations for batch")
 	}
 
 	funcType := FunctionType{
@@ -169,12 +167,12 @@ func executeBatch(functions functions, ctx context.Context, request *messages.To
 
 	function, exists := functions.module[funcType]
 	if !exists {
-		return nil, errors.New(funcType.String() + " does not exist")
+		return nil, errors.BadRequest("%s does not exist", funcType.String())
 	}
 
 	runtime, err := newRuntime(invocations.State)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup runtime for batch %w", err)
+		return nil, errors.Wrap(err, "failed to setup runtime for batch")
 	}
 
 	self := fromInternal(invocations.Target)
@@ -188,7 +186,7 @@ func executeBatch(functions functions, ctx context.Context, request *messages.To
 			ctx = context.WithValue(ctx, callerKey, caller)
 			err := function.Invoke(ctx, runtime, (*invocation).Argument)
 			if err != nil {
-				return nil, fmt.Errorf("failed to execute function %s %w", self.String(), err)
+				return nil, errors.Wrap(err, "failed to execute function "+self.String())
 			}
 		}
 	}
