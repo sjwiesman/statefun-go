@@ -7,38 +7,55 @@ import (
 	"strings"
 )
 
-// stateFunError represents one or more details about an error. They are usually
+// StateFunError represents one or more details about an error. They are usually
 // nested in the order that additional context was wrapped around the original
 // error.
-type stateFunError struct {
+type StateFunError struct {
 	code    int
 	cause   error
 	message string
 }
 
+// BadRequest returns an error that indicates
+// bad data from the StateFun runtime.
+// Each call to New returns a distinct error value even if the text is identical.
 func BadRequest(format string, args ...interface{}) error {
-	return &stateFunError{
+	return &StateFunError{
 		code:  http.StatusBadRequest,
 		cause: fmt.Errorf(format, args...),
 	}
 }
 
+// New returns an error that formats as the given text.
+// Each call to New returns a distinct error value even if the text is identical.
+func New(format string, args ...interface{}) error {
+	return &StateFunError{
+		code:    http.StatusInternalServerError,
+		cause:   nil,
+		message: fmt.Sprintf(format, args...),
+	}
+}
+
+// Wrap returns a new error annotating err with a new message according to
+// the format specifier.
 func Wrap(e error, format string, args ...interface{}) error {
 	code := http.StatusInternalServerError
-	if inner, ok := e.(*stateFunError); ok {
+	if inner, ok := e.(*StateFunError); ok {
 		code = inner.code
 	}
 
-	return &stateFunError{
+	return &StateFunError{
 		code:    code,
 		cause:   e,
 		message: fmt.Sprintf(format, args...),
 	}
 }
 
+// ToCode translates the error
+// into an http error code.
 func ToCode(e error) int {
 	switch unwrapped := e.(type) {
-	case *stateFunError:
+	case *StateFunError:
 		return unwrapped.code
 	default:
 		return http.StatusInternalServerError
@@ -48,7 +65,7 @@ func ToCode(e error) int {
 // Error outputs a beamError as a string. The top-level error message is
 // displayed first, followed by each error's context and error message in
 // sequence. The original error is output last.
-func (e *stateFunError) Error() string {
+func (e *StateFunError) Error() string {
 	var builder strings.Builder
 
 	e.printRecursive(&builder)
@@ -58,7 +75,7 @@ func (e *stateFunError) Error() string {
 
 // printRecursive is a helper function for outputting the contexts and messages
 // of a sequence of beamErrors.
-func (e *stateFunError) printRecursive(builder *strings.Builder) {
+func (e *StateFunError) printRecursive(builder *strings.Builder) {
 	wraps := e.cause != nil
 
 	if e.message != "" {
@@ -69,7 +86,7 @@ func (e *stateFunError) printRecursive(builder *strings.Builder) {
 	}
 
 	if wraps {
-		if be, ok := e.cause.(*stateFunError); ok {
+		if be, ok := e.cause.(*StateFunError); ok {
 			be.printRecursive(builder)
 		} else {
 			builder.WriteString(e.cause.Error())
@@ -78,7 +95,7 @@ func (e *stateFunError) printRecursive(builder *strings.Builder) {
 }
 
 // Format implements the fmt.Formatter interface
-func (e *stateFunError) Format(s fmt.State, verb rune) {
+func (e *StateFunError) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 'v', 's':
 		_, _ = io.WriteString(s, e.Error())

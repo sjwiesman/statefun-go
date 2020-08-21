@@ -1,11 +1,10 @@
 package statefun
 
 import (
-	"errors"
-	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/errors"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/io"
 	"time"
@@ -94,7 +93,7 @@ func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) (*runtime
 func (tracker *runtime) Get(name string, state proto.Message) error {
 	packedState := tracker.states[name]
 	if packedState == nil {
-		return errors.New(fmt.Sprintf("unknown state name %s", name))
+		return errors.New("unknown state name %s", name)
 	}
 
 	if packedState.value == nil || packedState.value.TypeUrl == "" {
@@ -107,7 +106,7 @@ func (tracker *runtime) Get(name string, state proto.Message) error {
 func (tracker *runtime) Set(name string, value proto.Message) error {
 	state := tracker.states[name]
 	if state == nil {
-		return errors.New(fmt.Sprintf("Unknown state name %s", name))
+		return errors.New("unknown state name %s", name)
 	}
 
 	packedState, err := internal.Marshall(value)
@@ -133,7 +132,7 @@ func (tracker *runtime) Send(target *Address, message proto.Message) error {
 
 	packedState, err := internal.Marshall(message)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to serialize message for target %s", target.FunctionType.String())
 	}
 
 	invocation := &messages.FromFunction_Invocation{
@@ -156,7 +155,7 @@ func (tracker *runtime) SendAfter(target *Address, duration time.Duration, messa
 
 	packedMessage, err := internal.Marshall(message)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to serialize message for delayed target %s", target.FunctionType.String())
 	}
 
 	delayedInvocation := &messages.FromFunction_DelayedInvocation{
@@ -180,7 +179,7 @@ func (tracker *runtime) SendEgress(egress io.EgressIdentifier, message proto.Mes
 
 	packedMessage, err := internal.Marshall(message)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to serialize message for egress %s", egress.String())
 	}
 
 	egressMessage := &messages.FromFunction_EgressMessage{
@@ -212,7 +211,7 @@ func (tracker *runtime) fromFunction() (*messages.FromFunction, error) {
 
 			bytes, err = proto.Marshal(state.value)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "failed to serialize result for runtime")
 			}
 		}
 

@@ -44,6 +44,8 @@ type FunctionRegistry interface {
 	http.Handler
 
 	// Handler for processing arbitrary payloads.
+	// This method provides compliance with AWS Lambda
+	// handler.
 	Invoke(ctx context.Context, payload []byte) ([]byte, error)
 
 	// Register a StatefulFunction under a FunctionType.
@@ -114,7 +116,7 @@ func (functions functions) Invoke(ctx context.Context, payload []byte) ([]byte, 
 
 	fromFunction, err := executeBatch(functions, ctx, toFunction)
 	if err != nil {
-		return nil, errors.Wrap(err, "error processing request %s", proto.MarshalTextString(toFunction))
+		return nil, err
 	}
 
 	return proto.Marshal(fromFunction)
@@ -185,8 +187,9 @@ func executeBatch(functions functions, ctx context.Context, request *messages.To
 			caller := fromInternal(invocation.Caller)
 			ctx = context.WithValue(ctx, callerKey, caller)
 			err := function.Invoke(ctx, runtime, (*invocation).Argument)
+
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to execute function "+self.String())
+				return nil, errors.Wrap(err, "failed to execute function %s", self.String())
 			}
 		}
 	}

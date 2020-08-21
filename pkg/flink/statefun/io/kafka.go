@@ -1,9 +1,9 @@
 package io
 
 import (
-	"errors"
 	"github.com/golang/protobuf/proto"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/errors"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 )
 
@@ -32,7 +32,7 @@ func (record *KafkaRecord) ToMessage() (proto.Message, error) {
 
 	marshalled, err := internal.Marshall(record.Value)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to marshall message meant for kafka topic %s", record.Topic)
 	}
 
 	var bytes []byte
@@ -40,7 +40,7 @@ func (record *KafkaRecord) ToMessage() (proto.Message, error) {
 	if marshalled != nil {
 		bytes, err = proto.Marshal(marshalled)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to serialize message meant for kafka topic %s", record.Topic)
 		}
 	}
 

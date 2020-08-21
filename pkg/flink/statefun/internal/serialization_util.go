@@ -1,10 +1,10 @@
 package internal
 
 import (
-	"errors"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/errors"
 )
 
 func Marshall(value proto.Message) (*any.Any, error) {
@@ -17,7 +17,7 @@ func Marshall(value proto.Message) (*any.Any, error) {
 	default:
 		marshalled, err := ptypes.MarshalAny(record)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to marshall value into any")
 		}
 		packedState = marshalled
 	}
@@ -27,7 +27,7 @@ func Marshall(value proto.Message) (*any.Any, error) {
 func Unmarshall(value *any.Any, receiver proto.Message) error {
 	switch unmarshalled := receiver.(type) {
 	case nil:
-		return errors.New("cannot Unmarshall into nil receiver")
+		return errors.New("cannot unmarshall into nil receiver")
 	case *any.Any:
 		unmarshalled.TypeUrl = value.TypeUrl
 		unmarshalled.Value = value.Value
