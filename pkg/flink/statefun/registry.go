@@ -99,15 +99,16 @@ func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	_, err := buffer.ReadFrom(req.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	bytes, err := functions.Invoke(req.Context(), buffer.Bytes())
 	if err != nil {
 		http.Error(w, err.Error(), errors.ToCode(err))
 		log.Print(err)
+		return
 	}
 
-	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(bytes)
 }
 

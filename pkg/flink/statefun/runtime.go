@@ -58,7 +58,7 @@ type state struct {
 // It tracks all responses that will be sent back to the
 // Flink runtime after the full batch has been executed.
 type runtime struct {
-	states            map[string]*state
+	states            map[string]state
 	invocations       []*messages.FromFunction_Invocation
 	delayedInvocation []*messages.FromFunction_DelayedInvocation
 	outgoingEgress    []*messages.FromFunction_EgressMessage
@@ -68,7 +68,7 @@ type runtime struct {
 // and set of initial states.
 func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) (*runtime, error) {
 	ctx := &runtime{
-		states:            map[string]*state{},
+		states:            map[string]state{},
 		invocations:       []*messages.FromFunction_Invocation{},
 		delayedInvocation: []*messages.FromFunction_DelayedInvocation{},
 		outgoingEgress:    []*messages.FromFunction_EgressMessage{},
@@ -81,7 +81,7 @@ func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) (*runtime
 			return nil, err
 		}
 
-		ctx.states[persistedValue.StateName] = &state{
+		ctx.states[persistedValue.StateName] = state{
 			updated: false,
 			value:   &value,
 		}
@@ -91,8 +91,8 @@ func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) (*runtime
 }
 
 func (tracker *runtime) Get(name string, state proto.Message) error {
-	packedState := tracker.states[name]
-	if packedState == nil {
+	packedState, ok := tracker.states[name]
+	if !ok {
 		return errors.New("unknown state name %s", name)
 	}
 
@@ -104,8 +104,8 @@ func (tracker *runtime) Get(name string, state proto.Message) error {
 }
 
 func (tracker *runtime) Set(name string, value proto.Message) error {
-	state := tracker.states[name]
-	if state == nil {
+	state, ok := tracker.states[name]
+	if !ok {
 		return errors.New("unknown state name %s", name)
 	}
 
