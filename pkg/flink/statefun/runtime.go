@@ -28,6 +28,10 @@ type StatefulFunctionRuntime interface {
 	// if it is not already.
 	Set(name string, value proto.Message) error
 
+	// Exists returns true if a value exists
+	// for the current state, false otherwise.
+	Exists(name string) bool
+
 	// Clear deletes the state registered under the name
 	Clear(name string)
 
@@ -119,6 +123,15 @@ func (tracker *runtime) Set(name string, value proto.Message) error {
 	tracker.states[name] = state
 
 	return nil
+}
+
+func (tracker *runtime) Exists(name string) bool {
+	state, ok := tracker.states[name]
+	if !ok {
+		return false
+	}
+
+	return state.value == nil
 }
 
 func (tracker *runtime) Clear(name string) {
