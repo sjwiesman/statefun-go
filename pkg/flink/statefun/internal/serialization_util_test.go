@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/anypb"
 	"testing"
@@ -19,15 +18,15 @@ func TestUnmarshalAny(t *testing.T) {
 		TypeUrl: "test/type",
 		Value:   nil,
 	}
-	receiver := any.Any{}
 
+	receiver := anypb.Any{}
 	err := Unmarshall(&value, &receiver)
 
 	if err != nil {
 		t.Error(err)
 	}
 
-	assert.Equal(t, value, receiver)
+	assert.Equal(t, &value, &receiver)
 }
 
 func TestMarshalAny(t *testing.T) {

@@ -19,7 +19,7 @@ type Greeter struct{}
 
 func (greeter Greeter) Invoke(ctx context.Context, runtime statefun.StatefulFunctionRuntime, _ *anypb.Any) error {
 	var seen SeenCount
-	if err := runtime.Get("seen_count", &seen); err != nil {
+	if _, err := runtime.Get("seen_count", &seen); err != nil {
 		return err
 	}
 

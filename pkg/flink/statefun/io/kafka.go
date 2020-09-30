@@ -1,10 +1,10 @@
 package io
 
 import (
-	"github.com/golang/protobuf/proto"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/errors"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
+	"google.golang.org/protobuf/proto"
 )
 
 // Egress message that will be

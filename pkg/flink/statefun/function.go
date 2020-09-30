@@ -2,7 +2,7 @@ package statefun
 
 import (
 	"context"
-	any "google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // StatefulFunction is a user-defined function that can be invoked with a given input.
@@ -26,5 +26,5 @@ import (
 type StatefulFunction interface {
 
 	// Invoke this function with the given input.
-	Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *any.Any) error
+	Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *anypb.Any) error
 }

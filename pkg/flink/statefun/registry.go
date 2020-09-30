@@ -2,11 +2,11 @@ package statefun
 
 import (
 	"context"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/errors"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 	"github.com/valyala/bytebufferpool"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"log"
 	"net/http"
 )
@@ -52,16 +52,16 @@ type FunctionRegistry interface {
 	// Registers a function pointer as a StatefulFunction under a FunctionType.
 	RegisterFunctionPointer(
 		funcType FunctionType,
-		function func(context.Context, StatefulFunctionRuntime, *any.Any) error)
+		function func(context.Context, StatefulFunctionRuntime, *anypb.Any) error)
 }
 
 // The statefulFunctionPointer type is an adapter to allow the use of
 // ordinary functions as StatefulFunction. If f is a function
 // with the appropriate signature, statefulFunctionPointer(f) is a
 // Handler that calls f.
-type statefulFunctionPointer func(context.Context, StatefulFunctionRuntime, *any.Any) error
+type statefulFunctionPointer func(context.Context, StatefulFunctionRuntime, *anypb.Any) error
 
-func (f statefulFunctionPointer) Invoke(ctx context.Context, rt StatefulFunctionRuntime, msg *any.Any) error {
+func (f statefulFunctionPointer) Invoke(ctx context.Context, rt StatefulFunctionRuntime, msg *anypb.Any) error {
 	return f(ctx, rt, msg)
 }
 
@@ -82,7 +82,7 @@ func (functions *functions) RegisterFunction(funcType FunctionType, function Sta
 
 func (functions *functions) RegisterFunctionPointer(
 	funcType FunctionType,
-	function func(context.Context, StatefulFunctionRuntime, *any.Any) error) {
+	function func(context.Context, StatefulFunctionRuntime, *anypb.Any) error) {
 
 	log.Printf("registering stateful function %s", funcType.String())
 	functions.module[funcType] = statefulFunctionPointer(function)
@@ -118,7 +118,7 @@ func (functions functions) Invoke(ctx context.Context, payload []byte) ([]byte, 
 		return nil, errors.BadRequest("failed to unmarshal payload %w", err)
 	}
 
-	fromFunction, err := executeBatch(functions, ctx, toFunction)
+	fromFunction, err := functions.executeBatch(ctx, toFunction)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func fromInternal(address *messages.Address) *Address {
 	}
 }
 
-func executeBatch(functions functions, ctx context.Context, request *messages.ToFunction) (*messages.FromFunction, error) {
+func (functions functions) executeBatch(ctx context.Context, request *messages.ToFunction) (*messages.FromFunction, error) {
 	invocations := request.GetInvocation()
 	if invocations == nil {
 		return nil, errors.BadRequest("missing invocations for batch")

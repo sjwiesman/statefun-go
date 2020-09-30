@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/test"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/io"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"io/ioutil"
 	"net/http"
@@ -20,7 +18,7 @@ import (
 	"time"
 )
 
-var caller = messages.Address{
+var caller = &messages.Address{
 	Namespace: "remote",
 	Type:      "caller",
 	Id:        "id2",
@@ -28,25 +26,25 @@ var caller = messages.Address{
 
 var egress = io.EgressIdentifier{EgressNamespace: "test", EgressType: "egress"}
 
-var serializedArgument any.Any
+var serializedArgument *anypb.Any
 
-var serializedGreeting any.Any
+var serializedGreeting *anypb.Any
 
 var stateValue []byte
 
-//noinspection GoVetCopyLock
 func init() {
-	pointer, _ := ptypes.MarshalAny(&test.Invoke{})
-	serializedArgument = *pointer
+	serializedArgument = &anypb.Any{}
+	_ = serializedArgument.MarshalFrom(&test.Invoke{})
 
-	pointer, _ = ptypes.MarshalAny(&test.Greeting{Greeting: "Hello"})
-	serializedGreeting = *pointer
+	serializedGreeting = &anypb.Any{}
+	_ = serializedGreeting.MarshalFrom(&test.Greeting{Greeting: "Hello"})
 
-	countAny, _ := ptypes.MarshalAny(&test.Counter{Count: 1})
+	countAny := &anypb.Any{}
+	_ = countAny.MarshalFrom(&test.Counter{Count: 1})
+
 	stateValue, _ = proto.Marshal(countAny)
 }
 
-//noinspection GoVetCopyLock
 func TestFunctionHandler(t *testing.T) {
 	toFunction := messages.ToFunction{
 		Request: &messages.ToFunction_Invocation_{
@@ -77,7 +75,7 @@ func TestFunctionHandler(t *testing.T) {
 							Type:      "caller",
 							Id:        "id2",
 						},
-						Argument: &serializedArgument,
+						Argument: serializedArgument,
 					},
 				},
 			},
@@ -105,6 +103,7 @@ func TestFunctionHandler(t *testing.T) {
 	assert.NoError(t, err)
 
 	err = proto.Unmarshal(respBytes, &fromFunction)
+	assert.NoError(t, err)
 
 	response := fromFunction.GetInvocationResult()
 
@@ -118,13 +117,13 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Contains(t, mutations, "modified-state", "missing modified state")
 	assert.Equal(t, messages.FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
 
-	var packagedState any.Any
+	var packagedState anypb.Any
 	if err := proto.Unmarshal(mutations["modified-state"].StateValue, &packagedState); err != nil {
 		assert.Fail(t, err.Error())
 	}
 
 	var counterUpdate test.Counter
-	if err := ptypes.UnmarshalAny(&packagedState, &counterUpdate); err != nil {
+	if err := packagedState.UnmarshalTo(&counterUpdate); err != nil {
 		assert.Fail(t, err.Error())
 	}
 
@@ -134,18 +133,18 @@ func TestFunctionHandler(t *testing.T) {
 	assert.Equal(t, messages.FromFunction_PersistedValueMutation_DELETE, mutations["deleted-state"].MutationType, "wrong mutation type")
 
 	assert.Equal(t, 1, len(response.OutgoingMessages), "wrong number of outgoing messages")
-	assert.Equal(t, caller, *response.OutgoingMessages[0].Target, "wrong message target")
-	assert.Equal(t, serializedGreeting, *response.OutgoingMessages[0].Argument, "wrong message argument")
+	assert.Equal(t, caller, response.OutgoingMessages[0].Target, "wrong message target")
+	assert.Equal(t, serializedGreeting, response.OutgoingMessages[0].Argument, "wrong message argument")
 
 	assert.Equal(t, 1, len(response.DelayedInvocations), "wrong number of delayed invocations")
-	assert.Equal(t, caller, *response.DelayedInvocations[0].Target, "wrong message target")
+	assert.Equal(t, caller, response.DelayedInvocations[0].Target, "wrong message target")
 	assert.Equal(t, int64(60000), response.DelayedInvocations[0].DelayInMs, "wrong message delay")
-	assert.Equal(t, serializedGreeting, *response.DelayedInvocations[0].Argument, "wrong message argument")
+	assert.Equal(t, serializedGreeting, response.DelayedInvocations[0].Argument, "wrong message argument")
 
 	assert.Equal(t, 1, len(response.OutgoingEgresses), "wrong number of egress messages")
 	assert.Equal(t, egress.EgressNamespace, response.OutgoingEgresses[0].EgressNamespace, "wrong egress namespace")
 	assert.Equal(t, egress.EgressType, response.OutgoingEgresses[0].EgressType, "wrong egress type")
-	assert.Equal(t, serializedGreeting, *response.OutgoingEgresses[0].Argument, "wrong egress message")
+	assert.Equal(t, serializedGreeting, response.OutgoingEgresses[0].Argument, "wrong egress message")
 }
 
 func TestValidation(t *testing.T) {
@@ -169,12 +168,13 @@ func TestValidation(t *testing.T) {
 type Greeter struct{}
 
 func (f Greeter) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *anypb.Any) error {
-	if err := ptypes.UnmarshalAny(msg, &test.Invoke{}); err != nil {
+	message := &test.Invoke{}
+	if err := msg.UnmarshalTo(message); err != nil {
 		return err
 	}
 
 	var count test.Counter
-	if err := runtime.Get("modified-state", &count); err != nil {
+	if _, err := runtime.Get("modified-state", &count); err != nil {
 		return err
 	}
 
@@ -203,7 +203,7 @@ func (f Greeter) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, ms
 
 	runtime.Clear("deleted-state")
 
-	if err := runtime.Get("read-only-state", &count); err != nil {
+	if _, err := runtime.Get("read-only-state", &count); err != nil {
 		return err
 	}
 

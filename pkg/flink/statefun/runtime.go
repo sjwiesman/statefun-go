@@ -1,12 +1,13 @@
 package statefun
 
 import (
-	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/errors"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
 	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/io"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"time"
 )
 
@@ -21,16 +22,12 @@ type StatefulFunctionRuntime interface {
 	// unmarshalls the encoded value contained into the provided message state.
 	// It returns an error if the target message does not match the type
 	// in the Any message or if an unmarshal error occurs.
-	Get(name string, state proto.Message) error
+	Get(name string, state proto.Message) (bool, error)
 
 	// Set stores the value under the given name in state and
 	// marshals the given message m into an any.Any message
 	// if it is not already.
 	Set(name string, value proto.Message) error
-
-	// Exists returns true if a value exists
-	// for the current state, false otherwise.
-	Exists(name string) bool
 
 	// Clear deletes the state registered under the name
 	Clear(name string)
@@ -55,7 +52,7 @@ type StatefulFunctionRuntime interface {
 // of the function invocations
 type state struct {
 	updated bool
-	value   *any.Any
+	value   *anypb.Any
 }
 
 // runtime is the main effect tracker of the function invocation
@@ -94,17 +91,17 @@ func newRuntime(persistedValues []*messages.ToFunction_PersistedValue) (*runtime
 	return ctx, nil
 }
 
-func (tracker *runtime) Get(name string, state proto.Message) error {
+func (tracker *runtime) Get(name string, state proto.Message) (bool, error) {
 	packedState, ok := tracker.states[name]
 	if !ok {
-		return errors.New("unknown state name %s", name)
+		return false, errors.New("unknown state name %s", name)
 	}
 
 	if packedState.value == nil || packedState.value.TypeUrl == "" {
-		return nil
+		return false, nil
 	}
 
-	return internal.Unmarshall(packedState.value, state)
+	return true, internal.Unmarshall(packedState.value, state)
 }
 
 func (tracker *runtime) Set(name string, value proto.Message) error {
@@ -123,15 +120,6 @@ func (tracker *runtime) Set(name string, value proto.Message) error {
 	tracker.states[name] = state
 
 	return nil
-}
-
-func (tracker *runtime) Exists(name string) bool {
-	state, ok := tracker.states[name]
-	if !ok {
-		return false
-	}
-
-	return state.value == nil
 }
 
 func (tracker *runtime) Clear(name string) {
