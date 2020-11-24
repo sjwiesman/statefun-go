@@ -6,7 +6,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func Marshall(value proto.Message) (*anypb.Any, error)  {
+func Marshall(value proto.Message) (*anypb.Any, error) {
 	var packedState *anypb.Any
 	switch record := value.(type) {
 	case nil:

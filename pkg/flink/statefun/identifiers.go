@@ -1,6 +1,9 @@
 package statefun
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/sjwiesman/statefun-go/pkg/flink/statefun/internal/messages"
+)
 
 // A reference to a stateful function, consisting of a namespace and a name.
 // A function's type is part of a function's Address and serves as integral
@@ -25,4 +28,18 @@ type Address struct {
 
 func (address *Address) String() string {
 	return fmt.Sprintf("%s/%s", address.FunctionType.String(), address.Id)
+}
+
+func fromInternal(address *messages.Address) *Address {
+	if address == nil {
+		return nil
+	}
+
+	return &Address{
+		FunctionType: FunctionType{
+			Namespace: address.Namespace,
+			Type:      address.Type,
+		},
+		Id: address.Id,
+	}
 }

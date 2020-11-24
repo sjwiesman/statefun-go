@@ -24,6 +24,7 @@ import (
 // Each individual function instance may have state that is maintained by the system,
 // providing exactly-once guarantees.
 type StatefulFunction interface {
+	StateSpecs() []StateSpec
 
 	// Invoke this function with the given input.
 	Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *anypb.Any) error

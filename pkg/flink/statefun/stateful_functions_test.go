@@ -87,7 +87,7 @@ func TestFunctionHandler(t *testing.T) {
 	functions.RegisterFunction(FunctionType{
 		Namespace: "remote",
 		Type:      "greeter",
-	}, Greeter{})
+	}, TestFunction{})
 
 	server := httptest.NewServer(functions)
 	defer server.Close()
@@ -113,7 +113,6 @@ func TestFunctionHandler(t *testing.T) {
 	}
 
 	assert.Equal(t, 2, len(mutations), "wrong number of state mutations")
-
 	assert.Contains(t, mutations, "modified-state", "missing modified state")
 	assert.Equal(t, messages.FromFunction_PersistedValueMutation_MODIFY, mutations["modified-state"].MutationType, "wrong mutation type")
 
@@ -165,9 +164,23 @@ func TestValidation(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "incorrect validation code on malformed content")
 }
 
-type Greeter struct{}
+type TestFunction struct{}
 
-func (f Greeter) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *anypb.Any) error {
+func (f TestFunction) StateSpecs() []StateSpec {
+	return []StateSpec{
+		{
+			StateName: "modified-state",
+		},
+		{
+			StateName: "deleted-state",
+		},
+		{
+			StateName: "read-only-state",
+		},
+	}
+}
+
+func (f TestFunction) Invoke(ctx context.Context, runtime StatefulFunctionRuntime, msg *anypb.Any) error {
 	message := &test.Invoke{}
 	if err := msg.UnmarshalTo(message); err != nil {
 		return err

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM ververica/flink-statefun:2.1.0
+FROM flink-statefun:2.3-SNAPSHOT
 
 RUN echo "execution.checkpointing.interval: 5sec" >> /opt/flink/conf/flink-conf.yaml;
 

@@ -17,6 +17,14 @@ var egressId = io.EgressIdentifier{
 
 type Greeter struct{}
 
+func (greeter Greeter) StateSpecs() []statefun.StateSpec {
+	return []statefun.StateSpec{
+		{
+			StateName: "seen_count",
+		},
+	}
+}
+
 func (greeter Greeter) Invoke(ctx context.Context, runtime statefun.StatefulFunctionRuntime, _ *anypb.Any) error {
 	var seen SeenCount
 	if _, err := runtime.Get("seen_count", &seen); err != nil {

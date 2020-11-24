@@ -66,18 +66,27 @@ func (f statefulFunctionPointer) Invoke(ctx context.Context, rt StatefulFunction
 }
 
 type functions struct {
-	module map[FunctionType]StatefulFunction
+	module     map[FunctionType]StatefulFunction
+	stateSpecs map[FunctionType]map[string]*messages.FromFunction_PersistedValueSpec
 }
 
 func NewFunctionRegistry() FunctionRegistry {
 	return &functions{
-		module: make(map[FunctionType]StatefulFunction),
+		module:     make(map[FunctionType]StatefulFunction),
+		stateSpecs: make(map[FunctionType]map[string]*messages.FromFunction_PersistedValueSpec),
 	}
 }
 
 func (functions *functions) RegisterFunction(funcType FunctionType, function StatefulFunction) {
-	log.Printf("registering stateful function %s", funcType.String())
+	specs := function.StateSpecs()
+	log.Printf("registering stateful function %v with %v states", funcType, len(specs))
+
 	functions.module[funcType] = function
+	functions.stateSpecs[funcType] = make(map[string]*messages.FromFunction_PersistedValueSpec, len(specs))
+
+	for _, state := range specs {
+		functions.stateSpecs[funcType][state.StateName] = state.toInternal()
+	}
 }
 
 func (functions *functions) RegisterFunctionPointer(
@@ -85,7 +94,7 @@ func (functions *functions) RegisterFunctionPointer(
 	function func(context.Context, StatefulFunctionRuntime, *anypb.Any) error) {
 
 	log.Printf("registering stateful function %s", funcType.String())
-	functions.module[funcType] = statefulFunctionPointer(function)
+	//functions.module[funcType] = statefulFunctionPointer(function)
 }
 
 func (functions functions) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -126,6 +135,7 @@ func (functions functions) Invoke(ctx context.Context, payload []byte) ([]byte, 
 	return proto.Marshal(fromFunction)
 }
 
+// perform basic HTTP validation on the incoming payload
 func validRequest(w http.ResponseWriter, req *http.Request) bool {
 	if req.Method != "POST" {
 		http.Error(w, "invalid request method", http.StatusMethodNotAllowed)
@@ -146,17 +156,32 @@ func validRequest(w http.ResponseWriter, req *http.Request) bool {
 	return true
 }
 
-func fromInternal(address *messages.Address) *Address {
-	if address == nil {
+func checkRegisteredStates(
+	providedStates []*messages.ToFunction_PersistedValue,
+	statesSpecs map[string]*messages.FromFunction_PersistedValueSpec) *messages.FromFunction {
+
+	stateSet := make(map[string]bool, len(providedStates))
+	for _, state := range providedStates {
+		stateSet[state.StateName] = true
+	}
+
+	var missingValues []*messages.FromFunction_PersistedValueSpec
+	for name, spec := range statesSpecs {
+		if _, exists := stateSet[name]; !exists {
+			missingValues = append(missingValues, spec)
+		}
+	}
+
+	if missingValues == nil {
 		return nil
 	}
 
-	return &Address{
-		FunctionType: FunctionType{
-			Namespace: address.Namespace,
-			Type:      address.Type,
+	return &messages.FromFunction{
+		Response: &messages.FromFunction_IncompleteInvocationContext_{
+			IncompleteInvocationContext: &messages.FromFunction_IncompleteInvocationContext{
+				MissingValues: missingValues,
+			},
 		},
-		Id: address.Id,
 	}
 }
 
@@ -174,6 +199,10 @@ func (functions functions) executeBatch(ctx context.Context, request *messages.T
 	function, exists := functions.module[funcType]
 	if !exists {
 		return nil, errors.BadRequest("%s does not exist", funcType.String())
+	}
+
+	if missing := checkRegisteredStates(request.GetInvocation().State, functions.stateSpecs[funcType]); missing != nil {
+		return missing, nil
 	}
 
 	runtime, err := newRuntime(invocations.State)
