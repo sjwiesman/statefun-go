@@ -69,7 +69,7 @@ func (h *handler) WithSpec(spec StatefulFunctionSpec) StatefulFunctions {
 
 func (h *handler) AsHandler() RequestReplyHandler {
 	log.Println("Create RequestReplyHandler")
-	for typeName, _ := range h.module {
+	for typeName := range h.module {
 		log.Printf("> Registering %s\n", typeName)
 	}
 	return h

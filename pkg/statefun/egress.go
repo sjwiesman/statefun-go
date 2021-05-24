@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 )
 
@@ -90,7 +90,7 @@ type KinesisEgressBuilder struct {
 	ExplicitHashKey string
 }
 
-func (k KinesisEgressBuilder) ToEgressMessage(target Address) (EgressMessage, error) {
+func (k KinesisEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, error) {
 	if k.Stream == "" {
 		return EgressMessage{}, errors.New("missing destination Kinesis stream")
 	} else if k.Value == nil {
@@ -145,3 +145,36 @@ func (k KinesisEgressBuilder) ToEgressMessage(target Address) (EgressMessage, er
 
 	return m, nil
 }
+
+type GenericEgressBuilder struct {
+	Value interface{}
+	ValueType Type
+}
+
+func (g GenericEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, error) {
+	if g.ValueType == nil {
+		return EgressMessage{}, errors.New("missing value type")
+	} else if g.Value == nil {
+		return EgressMessage{}, errors.New("missing value")
+	}
+
+	data, err := g.ValueType.Serialize(g.Value)
+	if err != nil {
+		return EgressMessage{}, err
+	}
+
+	m := EgressMessage{
+		internal: &protocol.FromFunction_EgressMessage{
+			EgressNamespace: target.GetNamespace(),
+			EgressType:      target.GetName(),
+			Argument: &protocol.TypedValue{
+				Typename: g.ValueType.GetTypeName().String(),
+				HasValue: true,
+				Value:    data,
+			},
+		},
+	}
+
+	return m, nil
+}
+

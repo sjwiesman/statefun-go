@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"google.golang.org/protobuf/proto"
 	"log"
 )
 
@@ -196,4 +197,41 @@ func (j jsonType) Deserialize(receiver interface{}, data []byte) error {
 
 func (j jsonType) Serialize(data interface{}) ([]byte, error) {
 	return json.Marshal(data)
+}
+
+type protoType struct {
+	typeName TypeName
+}
+
+func MakeProtobufType(m proto.Message) Type {
+	return MakeProtobufTypeWithNamespace(m, "type.googleapis.com")
+}
+
+func MakeProtobufTypeWithNamespace(m proto.Message, namespace string) Type {
+	name := proto.MessageName(m)
+	return protoType{
+		typeName: typeNameFromParts(namespace, string(name)),
+	}
+}
+
+func (p protoType) GetTypeName() TypeName {
+	return p.typeName
+}
+
+func (p protoType) Deserialize(receiver interface{}, data []byte) error {
+	switch receiver := receiver.(type) {
+	case proto.Message:
+		return proto.Unmarshal(data, receiver)
+	default:
+		return errors.New("receiver must implement proto.Message")
+	}
+}
+
+func (p protoType) Serialize(data interface{}) ([]byte, error) {
+	switch data := data.(type) {
+	case proto.Message:
+		return proto.Marshal(data)
+	default:
+		return nil, errors.New("data must implement proto.Message")
+	}
 }
