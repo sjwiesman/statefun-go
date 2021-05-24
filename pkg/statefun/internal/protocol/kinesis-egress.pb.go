@@ -21,7 +21,7 @@
 // 	protoc        v3.11.4
 // source: kinesis-egress.proto
 
-package messages
+package protocol
 
 import (
 	proto "github.com/golang/protobuf/proto"
