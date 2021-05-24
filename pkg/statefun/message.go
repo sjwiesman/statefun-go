@@ -17,6 +17,8 @@ func (m MessageBuilder) ToMessage(target Address) (Message, error) {
 
 	if m.ValueType == nil {
 		switch m.Value.(type) {
+		case int:
+			return Message{}, errors.New("ambiguous integer type; please specify int32 or int64")
 		case bool, *bool:
 			m.ValueType = BoolType
 		case int32, *int32:
@@ -28,7 +30,7 @@ func (m MessageBuilder) ToMessage(target Address) (Message, error) {
 		case float64, *float64:
 			m.ValueType = Float64Type
 		case string, *string:
-			m.ValueType = Float64Type
+			m.ValueType = StringType
 		default:
 			return Message{}, errors.New("message contains non-primitive type, please supply a non-nil Type")
 		}

@@ -61,9 +61,9 @@ func Caller(ctx context.Context) *Address {
 }
 
 type StatefulFunctionSpec struct {
-	Id       TypeName
-	States   []ValueSpec
-	Function StatefulFunction
+	FunctionType TypeName
+	States       []ValueSpec
+	Function     StatefulFunction
 }
 
 type StatefulFunctionPointer func(ctx context.Context, storage *AddressScopedStorage, message Message) (*Mailbox, error)

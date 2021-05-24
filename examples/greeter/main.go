@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	. "statefun-sdk-go/pkg/statefun" 
+	. "statefun-sdk-go/pkg/statefun"
 )
 
 type GreetRequest struct {
@@ -94,14 +94,14 @@ func main() {
 		}}
 
 	builder.WithSpec(StatefulFunctionSpec{
-		Id:       PersonFunc,
-		States:   []ValueSpec{person.Visits},
-		Function: person,
+		FunctionType: PersonFunc,
+		States:       []ValueSpec{person.Visits},
+		Function:     person,
 	})
 
 	builder.WithSpec(StatefulFunctionSpec{
-		Id:       GreeterFunc,
-		Function: StatefulFunctionPointer(greeter),
+		FunctionType: GreeterFunc,
+		Function:     StatefulFunctionPointer(greeter),
 	})
 
 	http.Handle("/statefun", builder.AsHandler())

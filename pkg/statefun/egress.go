@@ -43,7 +43,7 @@ func (k KafkaEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, err
 			data, _ = StringType.Serialize(value)
 		case []byte:
 			data = value
-		case int32, int64, float32, float64:
+		case int, int32, int64, float32, float64:
 			buffer := bytes.Buffer{}
 			err = binary.Write(&buffer, binary.BigEndian, data)
 			data = buffer.Bytes()
@@ -147,7 +147,7 @@ func (k KinesisEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, e
 }
 
 type GenericEgressBuilder struct {
-	Value interface{}
+	Value     interface{}
 	ValueType Type
 }
 
@@ -177,4 +177,3 @@ func (g GenericEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, e
 
 	return m, nil
 }
-
