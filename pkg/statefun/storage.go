@@ -1,6 +1,7 @@
 package statefun
 
 import (
+	"bytes"
 	"fmt"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 	"sync"
@@ -14,10 +15,25 @@ type AddressScopedStorage interface {
 	Clear(spec ValueSpec)
 }
 
+type cell struct {
+	typedValue *protocol.TypedValue
+	buffer     bytes.Buffer
+	mutated    bool
+}
+
+func newCell(state *protocol.ToFunction_PersistedValue) cell {
+	c := cell{
+		typedValue: state.StateValue,
+	}
+
+	_, _ = c.buffer.Read(c.typedValue.Value)
+	c.typedValue.Value = nil
+	return c
+}
+
 type storage struct {
-	mutex   sync.RWMutex
-	states  map[string]*protocol.TypedValue
-	mutated map[string]bool
+	mutex sync.RWMutex
+	cells map[string]cell
 }
 
 type StorageFactory interface {
@@ -31,9 +47,8 @@ func NewStorageFactory(
 	specs map[string]*protocol.FromFunction_PersistedValueSpec,
 ) StorageFactory {
 	storage := &storage{
-		mutex:   sync.RWMutex{},
-		states:  make(map[string]*protocol.TypedValue, len(specs)),
-		mutated: make(map[string]bool, len(specs)),
+		mutex: sync.RWMutex{},
+		cells: make(map[string]cell, len(specs)),
 	}
 
 	states := make(map[string]*protocol.FromFunction_PersistedValueSpec, len(specs))
@@ -47,7 +62,8 @@ func NewStorageFactory(
 		}
 
 		delete(states, state.StateName)
-		storage.states[state.StateName] = state.StateValue
+
+		storage.cells[state.StateName] = newCell(state)
 	}
 
 	if len(states) > 0 {
@@ -74,16 +90,16 @@ func (s *storage) Get(spec ValueSpec, receiver interface{}) bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	typedValue, ok := s.states[spec.Name]
+	cell, ok := s.cells[spec.Name]
 	if !ok {
 		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
-	if !typedValue.HasValue {
+	if !cell.typedValue.HasValue {
 		return false
 	}
 
-	if err := spec.ValueType.Deserialize(receiver, typedValue.Value); err != nil {
+	if err := spec.ValueType.Deserialize(&cell.buffer, receiver); err != nil {
 		panic(fmt.Errorf("failed to deserialize %s: %w", spec.Name, err))
 	}
 
@@ -94,32 +110,33 @@ func (s *storage) Set(spec ValueSpec, value interface{}) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	typedValue, ok := s.states[spec.Name]
+	cell, ok := s.cells[spec.Name]
 	if !ok {
 		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
-	data, err := spec.ValueType.Serialize(value)
+	cell.buffer.Reset()
+	err := spec.ValueType.Serialize(&cell.buffer, value)
 	if err != nil {
 		panic(fmt.Errorf("failed to serialize %s: %w", spec.Name, err))
 	}
 
-	typedValue.HasValue = true
-	typedValue.Value = data
-	s.mutated[spec.Name] = true
+	cell.typedValue.HasValue = true
+	cell.mutated = true
 }
 
 func (s *storage) Clear(spec ValueSpec) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	typedValue, ok := s.states[spec.Name]
+
+	cell, ok := s.cells[spec.Name]
 	if !ok {
 		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
-	typedValue.HasValue = false
-	typedValue.Value = nil
-	s.mutated[spec.Name] = true
+	cell.buffer.Reset()
+	cell.typedValue.HasValue = false
+	cell.mutated = true
 }
 
 type MissingSpecs []*protocol.FromFunction_PersistedValueSpec

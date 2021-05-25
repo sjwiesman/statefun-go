@@ -35,33 +35,29 @@ func (k KafkaEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMess
 		return nil, errors.New("A Kafka record requires a value")
 	}
 
-	var data []byte
-	var err error
+	buffer := bytes.Buffer{}
 	if k.ValueType != nil {
-		data, err = k.ValueType.Serialize(k.Value)
-
+		if err := k.ValueType.Serialize(&buffer, k.Value); err != nil {
+			return nil, err
+		}
 	} else {
 		switch value := k.Value.(type) {
 		case string:
-			data, _ = StringType.Serialize(value)
+			_ = StringType.Serialize(&buffer, value)
 		case []byte:
-			data = value
+			buffer.Write(value)
 		case int, int32, int64, float32, float64:
-			buffer := bytes.Buffer{}
-			err = binary.Write(&buffer, binary.BigEndian, data)
-			data = buffer.Bytes()
+			if err := binary.Write(&buffer, binary.BigEndian, value); err != nil {
+				return nil, err
+			}
 		default:
-			err = errors.New("unable to convert value to bytes")
+			return nil, errors.New("unable to convert value to bytes")
 		}
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	kafka := protocol.KafkaProducerRecord{
 		Key:        k.Key,
-		ValueBytes: data,
+		ValueBytes: buffer.Bytes(),
 		Topic:      k.Topic,
 	}
 
@@ -103,29 +99,25 @@ func (k KinesisEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMe
 		return nil, errors.New("missing partition key")
 	}
 
-	var data []byte
-	var err error
+	buffer := bytes.Buffer{}
 	if k.ValueType != nil {
-		data, err = k.ValueType.Serialize(k.Value)
-
+		if err := k.ValueType.Serialize(&buffer, k.Value); err != nil {
+			return nil, err
+		}
 	} else {
 		switch value := k.Value.(type) {
 		case string:
-			data, _ = StringType.Serialize(value)
+			_ = StringType.Serialize(&buffer, value)
 		case []byte:
-			data = value
+			buffer.Write(value)
 		default:
-			err = errors.New("unable to convert value to bytes")
+			return nil, errors.New("unable to convert value to bytes")
 		}
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	kinesis := protocol.KinesisEgressRecord{
 		PartitionKey:    k.PartitionKey,
-		ValueBytes:      data,
+		ValueBytes:      buffer.Bytes(),
 		Stream:          k.Stream,
 		ExplicitHashKey: k.ExplicitHashKey,
 	}
@@ -163,8 +155,8 @@ func (g GenericEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMe
 		return nil, errors.New("missing value")
 	}
 
-	data, err := g.ValueType.Serialize(g.Value)
-	if err != nil {
+	buffer := bytes.Buffer{}
+	if err := g.ValueType.Serialize(&buffer, g.Value); err != nil {
 		return nil, err
 	}
 
@@ -174,7 +166,7 @@ func (g GenericEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMe
 		Argument: &protocol.TypedValue{
 			Typename: g.ValueType.GetTypeName().String(),
 			HasValue: true,
-			Value:    data,
+			Value:    buffer.Bytes(),
 		},
 	}, nil
 }

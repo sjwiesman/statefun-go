@@ -1,9 +1,9 @@
 package statefun
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"github.com/valyala/bytebufferpool"
 	"google.golang.org/protobuf/proto"
 	"log"
 	"net/http"
@@ -92,9 +92,7 @@ func (h *handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	buffer := bytebufferpool.Get()
-	defer bytebufferpool.Put(buffer)
-
+	buffer := bytes.Buffer{}
 	if _, err := buffer.ReadFrom(request.Body); err != nil {
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return

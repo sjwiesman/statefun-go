@@ -179,15 +179,65 @@ func TestHandler(t *testing.T) {
 	assert.Equal(t, "type.googleapis.com/io.statefun.sdk.egress.KafkaProducerRecord", result.OutgoingEgresses[0].Argument.Typename)
 }
 
+// global variable prevents the compiler
+// from optimizing away the benchmarkg
+var response *protocol.FromFunction
+
+func BenchmarkHandler(b *testing.B) {
+	toFunction := protocol.ToFunction{
+		Request: &protocol.ToFunction_Invocation_{
+			Invocation: &protocol.ToFunction_InvocationBatchRequest{
+				Target: &protocol.Address{
+					Namespace: "org.foo",
+					Type:      "greeter",
+					Id:        "0",
+				},
+				State: []*protocol.ToFunction_PersistedValue{
+					{
+						StateName: "seen",
+						StateValue: &protocol.TypedValue{
+							Typename: "io.statefun.types/int",
+							HasValue: false,
+							Value:    nil,
+						},
+					},
+				},
+				Invocations: []*protocol.ToFunction_Invocation{
+					{
+						Caller:   nil,
+						Argument: toTypedValue(StringType, "Hello"),
+					},
+				},
+			},
+		},
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		e := newExecutor(
+			context.Background(),
+			toFunction.GetInvocation(),
+			StatefulFunctionPointer(greeter),
+			map[string]*protocol.FromFunction_PersistedValueSpec{
+				"seen": {
+					StateName:    "seen",
+					TypeTypename: "io.statefun.types/int",
+				},
+			})
+
+		response, _ = e.run()
+	}
+}
+
 func toTypedValue(valueType Type, value interface{}) *protocol.TypedValue {
-	data, err := valueType.Serialize(value)
-	if err != nil {
+	buffer := bytes.Buffer{}
+	if err := valueType.Serialize(&buffer, value); err != nil {
 		panic(err)
 	}
 
 	return &protocol.TypedValue{
 		Typename: valueType.GetTypeName().String(),
 		HasValue: true,
-		Value:    data,
+		Value:    buffer.Bytes(),
 	}
 }

@@ -85,19 +85,22 @@ func (e *executor) run() (*protocol.FromFunction, error) {
 			return nil, err
 		case mail, open := <-e.mailbox:
 			if !open {
-				mutations := make([]*protocol.FromFunction_PersistedValueMutation, 0, len(storage.mutated))
-				for name := range storage.mutated {
-					typedValue := storage.states[name]
+				mutations := make([]*protocol.FromFunction_PersistedValueMutation, 0)
+				for name, cell := range storage.cells {
+					if !cell.mutated {
+						continue
+					}
 
-					mutationType := protocol.FromFunction_PersistedValueMutation_MODIFY
-					if !typedValue.HasValue {
-						mutationType = protocol.FromFunction_PersistedValueMutation_DELETE
+					mutationType := protocol.FromFunction_PersistedValueMutation_DELETE
+					if cell.typedValue.HasValue {
+						mutationType = protocol.FromFunction_PersistedValueMutation_MODIFY
+						cell.typedValue.Value = cell.buffer.Bytes()
 					}
 
 					mutation := &protocol.FromFunction_PersistedValueMutation{
 						MutationType: mutationType,
 						StateName:    name,
-						StateValue:   typedValue,
+						StateValue:   cell.typedValue,
 					}
 
 					mutations = append(mutations, mutation)
