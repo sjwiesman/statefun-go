@@ -8,28 +8,31 @@ import (
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 )
 
-type EgressMessage struct {
-	internal *protocol.FromFunction_EgressMessage
-}
-
 type EgressBuilder interface {
-	ToEgressMessage(target TypeName) (EgressMessage, error)
+	Envelope
+	toEgressMessage() (*protocol.FromFunction_EgressMessage, error)
 }
 
 type KafkaEgressBuilder struct {
+	Target    TypeName
 	Topic     string
 	Key       string
 	Value     interface{}
 	ValueType Type
 }
 
-func (k KafkaEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, error) {
+func (k KafkaEgressBuilder) isEnvelope() {}
+
+func (k KafkaEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMessage, error) {
+	if k.Target == nil {
+		return nil, errors.New("an egress record requires a Target")
+	}
 	if k.Topic == "" {
-		return EgressMessage{}, errors.New("A Kafka record requires a topic")
+		return nil, errors.New("A Kafka record requires a topic")
 	}
 
 	if k.Value == nil {
-		return EgressMessage{}, errors.New("A Kafka record requires a value")
+		return nil, errors.New("A Kafka record requires a value")
 	}
 
 	var data []byte
@@ -53,7 +56,7 @@ func (k KafkaEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, err
 	}
 
 	if err != nil {
-		return EgressMessage{}, err
+		return nil, err
 	}
 
 	kafka := protocol.KafkaProducerRecord{
@@ -64,25 +67,22 @@ func (k KafkaEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, err
 
 	value, err := proto.Marshal(&kafka)
 	if err != nil {
-		return EgressMessage{}, err
+		return nil, err
 	}
 
-	m := EgressMessage{
-		internal: &protocol.FromFunction_EgressMessage{
-			EgressNamespace: target.GetNamespace(),
-			EgressType:      target.GetName(),
-			Argument: &protocol.TypedValue{
-				Typename: "type.googleapis.com/io.statefun.sdk.egress.KafkaProducerRecord",
-				HasValue: true,
-				Value:    value,
-			},
+	return &protocol.FromFunction_EgressMessage{
+		EgressNamespace: k.Target.GetNamespace(),
+		EgressType:      k.Target.GetName(),
+		Argument: &protocol.TypedValue{
+			Typename: "type.googleapis.com/io.statefun.sdk.egress.KafkaProducerRecord",
+			HasValue: true,
+			Value:    value,
 		},
-	}
-
-	return m, nil
+	}, nil
 }
 
 type KinesisEgressBuilder struct {
+	Target          TypeName
 	Stream          string
 	Value           interface{}
 	ValueType       Type
@@ -90,13 +90,17 @@ type KinesisEgressBuilder struct {
 	ExplicitHashKey string
 }
 
-func (k KinesisEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, error) {
-	if k.Stream == "" {
-		return EgressMessage{}, errors.New("missing destination Kinesis stream")
+func (k KinesisEgressBuilder) isEnvelope() {}
+
+func (k KinesisEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMessage, error) {
+	if k.Target == nil {
+		return nil, errors.New("an egress record requires a Target")
+	} else if k.Stream == "" {
+		return nil, errors.New("missing destination Kinesis stream")
 	} else if k.Value == nil {
-		return EgressMessage{}, errors.New("missing value")
+		return nil, errors.New("missing value")
 	} else if k.PartitionKey == "" {
-		return EgressMessage{}, errors.New("missing partition key")
+		return nil, errors.New("missing partition key")
 	}
 
 	var data []byte
@@ -116,7 +120,7 @@ func (k KinesisEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, e
 	}
 
 	if err != nil {
-		return EgressMessage{}, err
+		return nil, err
 	}
 
 	kinesis := protocol.KinesisEgressRecord{
@@ -128,52 +132,49 @@ func (k KinesisEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, e
 
 	value, err := proto.Marshal(&kinesis)
 	if err != nil {
-		return EgressMessage{}, err
+		return nil, err
 	}
 
-	m := EgressMessage{
-		internal: &protocol.FromFunction_EgressMessage{
-			EgressNamespace: target.GetNamespace(),
-			EgressType:      target.GetName(),
-			Argument: &protocol.TypedValue{
-				Typename: "type.googleapis.com/io.statefun.sdk.egress.KinesisEgressRecord",
-				HasValue: true,
-				Value:    value,
-			},
+	return &protocol.FromFunction_EgressMessage{
+		EgressNamespace: k.Target.GetNamespace(),
+		EgressType:      k.Target.GetName(),
+		Argument: &protocol.TypedValue{
+			Typename: "type.googleapis.com/io.statefun.sdk.egress.KinesisEgressRecord",
+			HasValue: true,
+			Value:    value,
 		},
-	}
-
-	return m, nil
+	}, nil
 }
 
 type GenericEgressBuilder struct {
+	Target    TypeName
 	Value     interface{}
 	ValueType Type
 }
 
-func (g GenericEgressBuilder) ToEgressMessage(target TypeName) (EgressMessage, error) {
-	if g.ValueType == nil {
-		return EgressMessage{}, errors.New("missing value type")
+func (g GenericEgressBuilder) isEnvelope() {}
+
+func (g GenericEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMessage, error) {
+	if g.Target == nil {
+		return nil, errors.New("an egress record requires a Target")
+	} else if g.ValueType == nil {
+		return nil, errors.New("missing value type")
 	} else if g.Value == nil {
-		return EgressMessage{}, errors.New("missing value")
+		return nil, errors.New("missing value")
 	}
 
 	data, err := g.ValueType.Serialize(g.Value)
 	if err != nil {
-		return EgressMessage{}, err
+		return nil, err
 	}
 
-	m := EgressMessage{
-		internal: &protocol.FromFunction_EgressMessage{
-			EgressNamespace: target.GetNamespace(),
-			EgressType:      target.GetName(),
-			Argument: &protocol.TypedValue{
-				Typename: g.ValueType.GetTypeName().String(),
-				HasValue: true,
-				Value:    data,
-			},
+	return &protocol.FromFunction_EgressMessage{
+		EgressNamespace: g.Target.GetNamespace(),
+		EgressType:      g.Target.GetName(),
+		Argument: &protocol.TypedValue{
+			Typename: g.ValueType.GetTypeName().String(),
+			HasValue: true,
+			Value:    data,
 		},
-	}
-
-	return m, nil
+	}, nil
 }

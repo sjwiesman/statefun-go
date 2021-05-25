@@ -6,13 +6,21 @@ import (
 	"sync"
 )
 
-type AddressScopedStorage struct {
+type AddressScopedStorage interface {
+	Get(spec ValueSpec, receiver interface{}) (bool, error)
+
+	Set(spec ValueSpec, value interface{}) error
+
+	Clear(spec ValueSpec) error
+}
+
+type storage struct {
 	mutex   sync.RWMutex
 	states  map[string]*protocol.TypedValue
 	mutated map[string]bool
 }
 
-func (s *AddressScopedStorage) Get(spec ValueSpec, receiver interface{}) (bool, error) {
+func (s *storage) Get(spec ValueSpec, receiver interface{}) (bool, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -28,7 +36,7 @@ func (s *AddressScopedStorage) Get(spec ValueSpec, receiver interface{}) (bool, 
 	return true, spec.ValueType.Deserialize(receiver, typedValue.Value)
 }
 
-func (s *AddressScopedStorage) Set(spec ValueSpec, value interface{}) error {
+func (s *storage) Set(spec ValueSpec, value interface{}) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -49,7 +57,7 @@ func (s *AddressScopedStorage) Set(spec ValueSpec, value interface{}) error {
 	return nil
 }
 
-func (s *AddressScopedStorage) Clear(spec ValueSpec) error {
+func (s *storage) Clear(spec ValueSpec) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	typedValue, ok := s.states[spec.Name]

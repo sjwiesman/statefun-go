@@ -26,9 +26,9 @@ type Person struct {
 }
 
 func (p Person) Invoke(
-	_ context.Context,
-	storage *AddressScopedStorage,
-	msg Message) (*Mailbox, error) {
+	ctx context.Context,
+	storage AddressScopedStorage,
+	msg Message) error {
 
 	var visits int32
 	_, _ = storage.Get(p.Visits, &visits)
@@ -39,39 +39,38 @@ func (p Person) Invoke(
 	_ = msg.As(GreetRequestType, &request)
 	request.Visits = visits
 
-	message, _ := MessageBuilder{
+	mailbox := Mailbox(ctx)
+	mailbox <- MessageBuilder{
+		Target: Address{
+			TypeName: GreeterFunc,
+			Id:       request.Name,
+		},
 		Value:     request,
 		ValueType: GreetRequestType,
-	}.ToMessage(Address{
-		TypeName: GreeterFunc,
-		Id:       request.Name,
-	})
+	}
 
-	mailbox := &Mailbox{}
-	mailbox.Send(message)
-	return mailbox, nil
+	return nil
 }
 
 func greeter(
-	_ context.Context,
-	_ *AddressScopedStorage,
-	msg Message) (*Mailbox, error) {
+	ctx context.Context,
+	_ AddressScopedStorage,
+	msg Message) error {
 
 	var request GreetRequest
 	_ = msg.As(GreetRequestType, &request)
 
 	greeting := computeGreeting(request.Name, request.Visits)
 
-	record, _ := KafkaEgressBuilder{
-		Topic: "greetings",
-		Key:   request.Name,
-		Value: greeting,
-	}.ToEgressMessage(KafkaEgress)
+	mailbox := Mailbox(ctx)
+	mailbox <- KafkaEgressBuilder{
+		Target: KafkaEgress,
+		Topic:  "greetings",
+		Key:    request.Name,
+		Value:  greeting,
+	}
 
-	mailbox := &Mailbox{}
-	mailbox.SendEgress(record)
-
-	return mailbox, nil
+	return nil
 }
 
 func computeGreeting(name string, seen int32) string {

@@ -3,16 +3,25 @@ package statefun
 import (
 	"errors"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
+	"time"
 )
 
 type MessageBuilder struct {
+	Target    Address
 	Value     interface{}
 	ValueType Type
+	Delay     time.Duration
 }
 
-func (m MessageBuilder) ToMessage(target Address) (Message, error) {
+func (m MessageBuilder) isEnvelope() {}
+
+func (m MessageBuilder) toMessage() (Message, error) {
+	if m.Target == (Address{}) {
+		return Message{}, errors.New("a message must have a non-empty target")
+	}
+
 	if m.Value == nil {
-		return Message{}, errors.New("A message cannot have a nil value")
+		return Message{}, errors.New("a message cannot have a nil value")
 	}
 
 	if m.ValueType == nil {
@@ -43,21 +52,23 @@ func (m MessageBuilder) ToMessage(target Address) (Message, error) {
 
 	return Message{
 		target: &protocol.Address{
-			Namespace: target.GetNamespace(),
-			Type:      target.GetName(),
-			Id:        target.Id,
+			Namespace: m.Target.GetNamespace(),
+			Type:      m.Target.GetName(),
+			Id:        m.Target.Id,
 		},
 		typedValue: &protocol.TypedValue{
 			Typename: m.ValueType.GetTypeName().String(),
 			HasValue: true,
 			Value:    data,
 		},
+		delayMs: m.Delay.Milliseconds(),
 	}, nil
 }
 
 type Message struct {
 	target     *protocol.Address
 	typedValue *protocol.TypedValue
+	delayMs    int64
 }
 
 func (m *Message) IsBool() bool {

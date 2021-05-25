@@ -19,70 +19,58 @@ var Seen = ValueSpec{
 	ValueType: Int32Type,
 }
 
-func greeter(ctx context.Context, storage *AddressScopedStorage, msg Message) (*Mailbox, error) {
+func greeter(ctx context.Context, storage AddressScopedStorage, msg Message) error {
 	if msg.IsString() {
 		if _, err := msg.AsString(); err != nil {
-			return nil, fmt.Errorf("failed to deserialize message: %w", err)
+			return fmt.Errorf("failed to deserialize message: %w", err)
 		}
 	}
 
 	var seen int32
 	if _, err := storage.Get(Seen, &seen); err != nil {
-		return nil, fmt.Errorf("failed to read state: %w", err)
+		return fmt.Errorf("failed to read state: %w", err)
 	}
 
 	seen += 1
 
 	if err := storage.Set(Seen, seen); err != nil {
-		return nil, fmt.Errorf("failed to write state: %w", err)
+		return fmt.Errorf("failed to write state: %w", err)
 	}
 
-	mailbox := &Mailbox{}
+	mailbox := Mailbox(ctx)
 
-	builder := MessageBuilder{Value: seen}
-	if message, err := builder.ToMessage(Address{
-		TypeName: TypeNameFrom("org.foo/greeter-java"),
-		Id:       "0",
-	}); err != nil {
-		return nil, fmt.Errorf("failed to build message: %w", err)
-	} else {
-		mailbox.Send(message)
+	mailbox <- MessageBuilder{
+		Target: Address{
+			TypeName: TypeNameFrom("org.foo/greeter-java"),
+			Id:       "0",
+		},
+		Value: seen,
 	}
 
-	delayedBuilder := MessageBuilder{Value: "hoo hoo"}
-	if message, err := delayedBuilder.ToMessage(Address{
-		TypeName: TypeNameFrom("night/owl"),
-		Id:       "1",
-	}); err != nil {
-		return nil, fmt.Errorf("failed to build message: %w", err)
-	} else {
-		mailbox.SendAfter(time.Duration(1)*time.Hour, message)
+	mailbox <- MessageBuilder{
+		Target: Address{
+			TypeName: TypeNameFrom("night/owl"),
+			Id:       "1",
+		},
+		Value: "hoo hoo",
+		Delay: time.Duration(1) * time.Hour,
 	}
 
-	kafka, err := KafkaEgressBuilder{
-		Topic: "out",
-		Key:   "abc",
-		Value: int32(133742),
-	}.ToEgressMessage(TypeNameFrom("e/kafka"))
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to build kafka message: %w", err)
+	mailbox <- KafkaEgressBuilder{
+		Target: TypeNameFrom("e/kafka"),
+		Topic:  "out",
+		Key:    "abc",
+		Value:  int32(133742),
 	}
 
-	mailbox.SendEgress(kafka)
-
-	kinesis, err := KinesisEgressBuilder{
+	mailbox <- KinesisEgressBuilder{
+		Target:       TypeNameFrom("e/kinesis"),
 		Stream:       "out",
 		Value:        "hello there",
 		PartitionKey: "abc",
-	}.ToEgressMessage(TypeNameFrom("e/kinesis"))
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to build kinesis message: %w", err)
 	}
 
-	mailbox.SendEgress(kinesis)
-	return mailbox, nil
+	return nil
 }
 
 func TestMissingStateValues(t *testing.T) {

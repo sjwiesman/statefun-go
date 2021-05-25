@@ -10,11 +10,13 @@ func TestBasicIntMessage(t *testing.T) {
 	assert.NoError(t, err)
 
 	message, err := MessageBuilder{
+		Target: Address{
+			TypeName: typename,
+			Id:       "a",
+		},
 		Value: int32(1),
-	}.ToMessage(Address{
-		TypeName: typename,
-		Id:       "a",
-	})
+	}.toMessage()
+
 	assert.NoError(t, err)
 	assert.True(t, message.IsInt32())
 
@@ -28,12 +30,14 @@ func TestMessageWithType(t *testing.T) {
 	assert.NoError(t, err)
 
 	message, err := MessageBuilder{
+		Target: Address{
+			TypeName: typename,
+			Id:       "a",
+		},
 		Value:     float32(5.0),
 		ValueType: Float32Type,
-	}.ToMessage(Address{
-		TypeName: typename,
-		Id:       "a",
-	})
+	}.toMessage()
+
 	assert.NoError(t, err)
 	assert.True(t, message.IsFloat32())
 

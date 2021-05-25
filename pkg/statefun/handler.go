@@ -124,7 +124,7 @@ func (h *handler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unknown Function type %s", self.TypeName)
 	}
 
-	storage := &AddressScopedStorage{
+	storage := &storage{
 		mutex:   sync.RWMutex{},
 		states:  make(map[string]*protocol.TypedValue, len(h.stateSpecs[self.TypeName])),
 		mutated: make(map[string]bool, len(h.stateSpecs[self.TypeName])),
@@ -136,63 +136,78 @@ func (h *handler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
 		return bytes, nil
 	}
 
-	var outgoing Mailbox
 	ctx = context.WithValue(ctx, selfKey, self)
+	mailbox := make(chan Envelope)
+
+	// assignment to this variable is required,
+	// context stores the channel as interface{}
+	// and will not retain the correct type information
+	// leading to a runtime cast exception
+	var send chan<- Envelope = mailbox
+	ctx = context.WithValue(ctx, mailboxKey, send)
+
+	failure := make(chan error)
+	defer close(failure)
+
+	invocations := make(chan *protocol.ToFunction_Invocation, len(batch.Invocations))
+
+	go execute(ctx, batch.Target, invocations, function, storage, mailbox, failure, self)
 
 	for _, invocation := range batch.Invocations {
-		if invocation.Caller != nil {
-			caller := addressFromInternal(invocation.Caller)
-			ctx = context.WithValue(ctx, callerKey, caller)
-		}
+		invocations <- invocation
+	}
+	close(invocations)
 
-		msg := Message{
-			target:     batch.Target,
-			typedValue: invocation.Argument,
-		}
+	result := &protocol.FromFunction_InvocationResponse{}
 
-		mailbox, err := function.Invoke(ctx, storage, msg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute invocation: %w", err)
-		}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case err := <-failure:
+			return nil, err
+		case mail, open := <-mailbox:
+			if !open {
+				fromFunction := completeResponse(storage, result)
+				return proto.Marshal(fromFunction)
+			}
 
-		if mailbox != nil {
-			outgoing.append(mailbox)
+			switch mail := mail.(type) {
+			case MessageBuilder:
+				msg, err := mail.toMessage()
+				if err != nil {
+					return nil, err
+				}
+
+				if msg.delayMs > 0 {
+					invocation := &protocol.FromFunction_DelayedInvocation{
+						Target:    msg.target,
+						Argument:  msg.typedValue,
+						DelayInMs: msg.delayMs,
+					}
+
+					result.DelayedInvocations = append(result.DelayedInvocations, invocation)
+				} else {
+					invocation := &protocol.FromFunction_Invocation{
+						Target:   msg.target,
+						Argument: msg.typedValue,
+					}
+
+					result.OutgoingMessages = append(result.OutgoingMessages, invocation)
+				}
+			case EgressBuilder:
+				msg, err := mail.toEgressMessage()
+				if err != nil {
+					return nil, err
+				}
+
+				result.OutgoingEgresses = append(result.OutgoingEgresses, msg)
+			}
 		}
 	}
-
-	mutations := make([]*protocol.FromFunction_PersistedValueMutation, 0, len(storage.mutated))
-	for name := range storage.mutated {
-		typedValue := storage.states[name]
-
-		mutationType := protocol.FromFunction_PersistedValueMutation_MODIFY
-		if !typedValue.HasValue {
-			mutationType = protocol.FromFunction_PersistedValueMutation_DELETE
-		}
-
-		mutation := &protocol.FromFunction_PersistedValueMutation{
-			MutationType: mutationType,
-			StateName:    name,
-			StateValue:   typedValue,
-		}
-
-		mutations = append(mutations, mutation)
-	}
-
-	fromFunction := protocol.FromFunction{
-		Response: &protocol.FromFunction_InvocationResult{
-			InvocationResult: &protocol.FromFunction_InvocationResponse{
-				StateMutations:     mutations,
-				OutgoingMessages:   outgoing.outgoingMessages,
-				DelayedInvocations: outgoing.delayedInvocations,
-				OutgoingEgresses:   outgoing.outgoingEgresses,
-			},
-		},
-	}
-
-	return proto.Marshal(&fromFunction)
 }
 
-func (h *handler) fillStorage(typeName TypeName, batch *protocol.ToFunction_InvocationBatchRequest, storage *AddressScopedStorage) ([]byte, error) {
+func (h *handler) fillStorage(typeName TypeName, batch *protocol.ToFunction_InvocationBatchRequest, storage *storage) ([]byte, error) {
 	specs := h.stateSpecs[typeName]
 	states := make(map[string]*protocol.FromFunction_PersistedValueSpec, len(specs))
 	for k, v := range specs {
@@ -225,4 +240,72 @@ func (h *handler) fillStorage(typeName TypeName, batch *protocol.ToFunction_Invo
 		return proto.Marshal(&fromFunction)
 	}
 	return nil, nil
+}
+
+func completeResponse(storage *storage, result *protocol.FromFunction_InvocationResponse) *protocol.FromFunction {
+	mutations := make([]*protocol.FromFunction_PersistedValueMutation, 0, len(storage.mutated))
+	for name := range storage.mutated {
+		typedValue := storage.states[name]
+
+		mutationType := protocol.FromFunction_PersistedValueMutation_MODIFY
+		if !typedValue.HasValue {
+			mutationType = protocol.FromFunction_PersistedValueMutation_DELETE
+		}
+
+		mutation := &protocol.FromFunction_PersistedValueMutation{
+			MutationType: mutationType,
+			StateName:    name,
+			StateValue:   typedValue,
+		}
+
+		mutations = append(mutations, mutation)
+	}
+
+	result.StateMutations = mutations
+	fromFunction := &protocol.FromFunction{
+		Response: &protocol.FromFunction_InvocationResult{
+			InvocationResult: result,
+		},
+	}
+	return fromFunction
+}
+
+func execute(
+	ctx context.Context,
+	target *protocol.Address,
+	invocations <-chan *protocol.ToFunction_Invocation,
+	function StatefulFunction,
+	storage *storage,
+	mailbox chan Envelope,
+	failure chan<- error,
+	self *Address) {
+
+	defer close(mailbox)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case invocation, open := <-invocations:
+			if !open {
+				return
+			}
+			if invocation.Caller != nil {
+				caller := addressFromInternal(invocation.Caller)
+				ctx = context.WithValue(ctx, callerKey, caller)
+			}
+
+			msg := Message{
+				target:     target,
+				typedValue: invocation.Argument,
+			}
+
+			err := function.Invoke(ctx, storage, msg)
+
+			if err != nil {
+				failure <- fmt.Errorf("failed to execute invocation for %s: %w", self.TypeName, err)
+				return
+			}
+		}
+	}
 }
