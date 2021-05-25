@@ -2,6 +2,7 @@ package statefun
 
 import (
 	"errors"
+	"fmt"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 	"time"
 )
@@ -75,60 +76,73 @@ func (m *Message) IsBool() bool {
 	return m.Is(BoolType)
 }
 
-func (m *Message) AsBool() (bool, error) {
+func (m *Message) AsBool() bool {
 	var receiver bool
-	err := BoolType.Deserialize(&receiver, m.typedValue.Value)
-	return receiver, err
+	if err := BoolType.Deserialize(&receiver, m.typedValue.Value); err != nil {
+		panic(fmt.Errorf("failed to deserialize message: %w", err))
+	}
+	return receiver
 }
 
 func (m *Message) IsInt32() bool {
 	return m.Is(Int32Type)
 }
 
-func (m *Message) AsInt32() (int32, error) {
+func (m *Message) AsInt32() int32 {
 	var receiver int32
-	err := Int32Type.Deserialize(&receiver, m.typedValue.Value)
-	return receiver, err
+	if err := Int32Type.Deserialize(&receiver, m.typedValue.Value); err != nil {
+		panic(fmt.Errorf("failed to deserialize message: %w", err))
+	}
+	return receiver
 }
 
 func (m *Message) IsInt64() bool {
 	return m.Is(Int64Type)
 }
 
-func (m *Message) AsInt64() (int64, error) {
+func (m *Message) AsInt64() int64 {
 	var receiver int64
-	err := Int64Type.Deserialize(&receiver, m.typedValue.Value)
-	return receiver, err
+	if err := Int64Type.Deserialize(&receiver, m.typedValue.Value); err != nil {
+		panic(fmt.Errorf("failed to deserialize message: %w", err))
+	}
+	return receiver
 }
 
 func (m *Message) IsFloat32() bool {
 	return m.Is(Float32Type)
 }
 
-func (m *Message) AsFloat32() (float32, error) {
+func (m *Message) AsFloat32() float32 {
 	var receiver float32
-	err := Float32Type.Deserialize(&receiver, m.typedValue.Value)
-	return receiver, err
+	if err := Float32Type.Deserialize(&receiver, m.typedValue.Value); err != nil {
+		panic(fmt.Errorf("failed to deserialize message: %w", err))
+	}
+	return receiver
 }
 
 func (m *Message) IsFloat64() bool {
 	return m.Is(Float64Type)
 }
 
-func (m *Message) AsFloat64() (float64, error) {
+func (m *Message) AsFloat64() float64 {
 	var receiver float64
-	err := Float64Type.Deserialize(&receiver, m.typedValue.Value)
-	return receiver, err
+	if err := Float64Type.Deserialize(&receiver, m.typedValue.Value); err != nil {
+		panic(fmt.Errorf("failed to deserialize message: %w", err))
+	}
+	return receiver
 }
 
 func (m *Message) IsString() bool {
 	return m.Is(StringType)
 }
 
-func (m *Message) AsString() (string, error) {
+func (m *Message) AsString() string {
 	var receiver string
-	err := StringType.Deserialize(&receiver, m.typedValue.Value)
-	return receiver, err
+	if err := StringType.Deserialize(&receiver, m.typedValue.Value); err != nil {
+		panic(fmt.Errorf("failed to deserialize message: %w", err))
+	}
+
+	return receiver
 }
 
 func (m *Message) Is(t Type) bool {

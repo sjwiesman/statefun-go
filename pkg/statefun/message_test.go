@@ -20,8 +20,7 @@ func TestBasicIntMessage(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, message.IsInt32())
 
-	value, err := message.AsInt32()
-	assert.NoError(t, err)
+	value := message.AsInt32()
 	assert.Equal(t, value, int32(1))
 }
 
@@ -41,7 +40,6 @@ func TestMessageWithType(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, message.IsFloat32())
 
-	value, err := message.AsFloat32()
-	assert.NoError(t, err)
+	value := message.AsFloat32()
 	assert.Equal(t, value, float32(5.0))
 }

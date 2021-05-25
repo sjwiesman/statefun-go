@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"log"
 	"net/http"
+	"reflect"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 	"sync"
 )
@@ -202,6 +203,8 @@ func (h *handler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
 				}
 
 				result.OutgoingEgresses = append(result.OutgoingEgresses, msg)
+			default:
+				log.Fatalf("unknown Envelope type %s", reflect.TypeOf(mail))
 			}
 		}
 	}
@@ -281,6 +284,17 @@ func execute(
 	self *Address) {
 
 	defer close(mailbox)
+	defer func() {
+		if r := recover(); r != nil {
+			switch r := r.(type) {
+			case error:
+				err := fmt.Errorf("failed to execute invocation for %s: %w", self.TypeName, r)
+				failure <- err
+			default:
+				log.Fatal(r)
+			}
+		}
+	}()
 
 	for {
 		select {

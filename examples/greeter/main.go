@@ -31,9 +31,9 @@ func (p Person) Invoke(
 	msg Message) error {
 
 	var visits int32
-	_, _ = storage.Get(p.Visits, &visits)
+	_ = storage.Get(p.Visits, &visits)
 	visits += 1
-	_ = storage.Set(p.Visits, visits)
+	storage.Set(p.Visits, visits)
 
 	request := GreetRequest{}
 	_ = msg.As(GreetRequestType, &request)

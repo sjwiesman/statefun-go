@@ -7,11 +7,11 @@ import (
 )
 
 type AddressScopedStorage interface {
-	Get(spec ValueSpec, receiver interface{}) (bool, error)
+	Get(spec ValueSpec, receiver interface{}) bool
 
-	Set(spec ValueSpec, value interface{}) error
+	Set(spec ValueSpec, value interface{})
 
-	Clear(spec ValueSpec) error
+	Clear(spec ValueSpec)
 }
 
 type storage struct {
@@ -20,54 +20,54 @@ type storage struct {
 	mutated map[string]bool
 }
 
-func (s *storage) Get(spec ValueSpec, receiver interface{}) (bool, error) {
+func (s *storage) Get(spec ValueSpec, receiver interface{}) bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	typedValue, ok := s.states[spec.Name]
 	if !ok {
-		return false, fmt.Errorf("unregistered ValueSpec %s", spec.Name)
+		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
 	if !typedValue.HasValue {
-		return false, nil
+		return false
 	}
 
-	return true, spec.ValueType.Deserialize(receiver, typedValue.Value)
+	if err := spec.ValueType.Deserialize(receiver, typedValue.Value); err != nil {
+		panic(fmt.Errorf("failed to deserialize %s: %w", spec.Name, err))
+	}
+
+	return true
 }
 
-func (s *storage) Set(spec ValueSpec, value interface{}) error {
+func (s *storage) Set(spec ValueSpec, value interface{}) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	typedValue, ok := s.states[spec.Name]
 	if !ok {
-		return fmt.Errorf("unregistered ValueSpec %s", spec.Name)
+		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
 	data, err := spec.ValueType.Serialize(value)
 	if err != nil {
-		return err
+		panic(fmt.Errorf("failed to serialize %s: %w", spec.Name, err))
 	}
 
 	typedValue.HasValue = true
 	typedValue.Value = data
 	s.mutated[spec.Name] = true
-
-	return nil
 }
 
-func (s *storage) Clear(spec ValueSpec) error {
+func (s *storage) Clear(spec ValueSpec) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	typedValue, ok := s.states[spec.Name]
 	if !ok {
-		return fmt.Errorf("unregistered ValueSpec %s", spec.Name)
+		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
 	typedValue.HasValue = false
 	typedValue.Value = nil
 	s.mutated[spec.Name] = true
-
-	return nil
 }

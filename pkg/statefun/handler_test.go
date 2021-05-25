@@ -3,7 +3,6 @@ package statefun
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
@@ -21,21 +20,13 @@ var Seen = ValueSpec{
 
 func greeter(ctx context.Context, storage AddressScopedStorage, msg Message) error {
 	if msg.IsString() {
-		if _, err := msg.AsString(); err != nil {
-			return fmt.Errorf("failed to deserialize message: %w", err)
-		}
+		_ = msg.AsString()
 	}
 
 	var seen int32
-	if _, err := storage.Get(Seen, &seen); err != nil {
-		return fmt.Errorf("failed to read state: %w", err)
-	}
-
+	storage.Get(Seen, &seen)
 	seen += 1
-
-	if err := storage.Set(Seen, seen); err != nil {
-		return fmt.Errorf("failed to write state: %w", err)
-	}
+	storage.Set(Seen, seen)
 
 	mailbox := Mailbox(ctx)
 
