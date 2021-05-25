@@ -74,6 +74,10 @@ func ParseTypeName(typename string) (TypeName, error) {
 		namespace = namespace[:len(namespace)-1]
 	}
 
+	return TypeNameFromParts(namespace, name)
+}
+
+func TypeNameFromParts(namespace, name string) (TypeName, error) {
 	if len(namespace) == 0 {
 		return nil, errors.New("namespace cannot be empty")
 	}
@@ -83,7 +87,9 @@ func ParseTypeName(typename string) (TypeName, error) {
 	}
 
 	return typeName{
-		namespace, name, typename,
+		namespace:      namespace,
+		name:           name,
+		typenameString: fmt.Sprintf("%s/%s", namespace, name),
 	}, nil
 }
 
@@ -93,16 +99,9 @@ type Address struct {
 }
 
 func addressFromInternal(a *protocol.Address) *Address {
+	name, _ := TypeNameFromParts(a.Namespace, a.Type)
 	return &Address{
-		TypeName: typeNameFromParts(a.Namespace, a.Type),
+		TypeName: name,
 		Id:       a.Id,
-	}
-}
-
-func typeNameFromParts(namespace, name string) typeName {
-	return typeName{
-		namespace:      namespace,
-		name:           name,
-		typenameString: fmt.Sprintf("%s/%s", namespace, name),
 	}
 }

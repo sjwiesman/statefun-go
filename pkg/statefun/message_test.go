@@ -15,7 +15,7 @@ func TestBasicIntMessage(t *testing.T) {
 			Id:       "a",
 		},
 		Value: int32(1),
-	}.toMessage()
+	}.ToMessage()
 
 	assert.NoError(t, err)
 	assert.True(t, message.IsInt32())
@@ -35,7 +35,7 @@ func TestMessageWithType(t *testing.T) {
 		},
 		Value:     float32(5.0),
 		ValueType: Float32Type,
-	}.toMessage()
+	}.ToMessage()
 
 	assert.NoError(t, err)
 	assert.True(t, message.IsFloat32())

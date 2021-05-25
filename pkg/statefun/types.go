@@ -209,8 +209,9 @@ func MakeProtobufType(m proto.Message) Type {
 
 func MakeProtobufTypeWithNamespace(m proto.Message, namespace string) Type {
 	name := proto.MessageName(m)
+	tName, _ := TypeNameFromParts(namespace, string(name))
 	return protoType{
-		typeName: typeNameFromParts(namespace, string(name)),
+		typeName: tName,
 	}
 }
 

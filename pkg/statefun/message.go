@@ -16,7 +16,7 @@ type MessageBuilder struct {
 
 func (m MessageBuilder) isEnvelope() {}
 
-func (m MessageBuilder) toMessage() (Message, error) {
+func (m MessageBuilder) ToMessage() (Message, error) {
 	if m.Target == (Address{}) {
 		return Message{}, errors.New("a message must have a non-empty target")
 	}

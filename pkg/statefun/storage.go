@@ -20,6 +20,56 @@ type storage struct {
 	mutated map[string]bool
 }
 
+type StorageFactory interface {
+	GetStorage() *storage
+
+	GetMissingSpecs() []*protocol.FromFunction_PersistedValueSpec
+}
+
+func NewStorageFactory(
+	batch *protocol.ToFunction_InvocationBatchRequest,
+	specs map[string]*protocol.FromFunction_PersistedValueSpec,
+) StorageFactory {
+	storage := &storage{
+		mutex:   sync.RWMutex{},
+		states:  make(map[string]*protocol.TypedValue, len(specs)),
+		mutated: make(map[string]bool, len(specs)),
+	}
+
+	states := make(map[string]*protocol.FromFunction_PersistedValueSpec, len(specs))
+	for k, v := range specs {
+		states[k] = v
+	}
+
+	for _, state := range batch.State {
+		if _, exists := states[state.StateName]; !exists {
+			continue
+		}
+
+		delete(states, state.StateName)
+		storage.states[state.StateName] = state.StateValue
+	}
+
+	if len(states) > 0 {
+		var missing = make([]*protocol.FromFunction_PersistedValueSpec, 0, len(states))
+		for _, spec := range states {
+			missing = append(missing, spec)
+		}
+
+		return MissingSpecs(missing)
+	} else {
+		return storage
+	}
+}
+
+func (s *storage) GetStorage() *storage {
+	return s
+}
+
+func (s *storage) GetMissingSpecs() []*protocol.FromFunction_PersistedValueSpec {
+	return nil
+}
+
 func (s *storage) Get(spec ValueSpec, receiver interface{}) bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -70,4 +120,14 @@ func (s *storage) Clear(spec ValueSpec) {
 	typedValue.HasValue = false
 	typedValue.Value = nil
 	s.mutated[spec.Name] = true
+}
+
+type MissingSpecs []*protocol.FromFunction_PersistedValueSpec
+
+func (m MissingSpecs) GetStorage() *storage {
+	return nil
+}
+
+func (m MissingSpecs) GetMissingSpecs() []*protocol.FromFunction_PersistedValueSpec {
+	return m
 }
