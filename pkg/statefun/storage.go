@@ -7,12 +7,34 @@ import (
 	"sync"
 )
 
+// An AddressScopedStorage is used for reading and writing persistent
+// values that are managed by the Stateful Functions runtime for
+// fault-tolerance and consistency.
+//
+// All access to the storage is scoped to the current function instance,
+// identified by the instance's Address. This means that within an
+// invocation, function instances may only access its own persisted
+// values through this storage.
 type AddressScopedStorage interface {
-	Get(spec ValueSpec, receiver interface{}) bool
 
+	// Gets the values of the provided ValueSpec, scoped to the
+	// current invoked Address and stores the result in the value
+	// pointed to by receiver. The method will return false
+	// if there is no value for the spec in storage
+	// so callers can differentiate between missing and
+	// the types zero value.
+	Get(spec ValueSpec, receiver interface{}) (exists bool)
+
+	// Sets teh value for the provided ValueSpec, scoped
+	// to the current invoked Address.
 	Set(spec ValueSpec, value interface{})
 
-	Clear(spec ValueSpec)
+	// Removes the prior value set for the the provided
+	// ValueSpec, scoped to the current invoked Address.
+	//
+	// After removing the value, calling Get for the same
+	// spec under the same Address will return false.
+	Remove(spec ValueSpec)
 }
 
 type cell struct {
@@ -144,7 +166,7 @@ func (s *storage) Set(spec ValueSpec, value interface{}) {
 	s.cells[spec.Name] = cell
 }
 
-func (s *storage) Clear(spec ValueSpec) {
+func (s *storage) Remove(spec ValueSpec) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

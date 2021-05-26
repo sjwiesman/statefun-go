@@ -55,8 +55,8 @@ func (m MessageBuilder) ToMessage() (Message, error) {
 
 	return Message{
 		target: &protocol.Address{
-			Namespace: m.Target.GetNamespace(),
-			Type:      m.Target.GetName(),
+			Namespace: m.Target.FunctionType.GetNamespace(),
+			Type:      m.Target.FunctionType.GetType(),
 			Id:        m.Target.Id,
 		},
 		typedValue: &protocol.TypedValue{

@@ -10,7 +10,7 @@ func TestTypeNameParse(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, typename.GetNamespace(), "namespace")
-	assert.Equal(t, typename.GetName(), "name")
+	assert.Equal(t, typename.GetType(), "name")
 }
 
 func TestNoNamespace(t *testing.T) {

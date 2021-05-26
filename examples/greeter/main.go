@@ -42,8 +42,8 @@ func (p Person) Invoke(
 	mailbox := Mailbox(ctx)
 	mailbox <- MessageBuilder{
 		Target: Address{
-			TypeName: GreeterFunc,
-			Id:       request.Name,
+			FunctionType: GreeterFunc,
+			Id:           request.Name,
 		},
 		Value:     request,
 		ValueType: GreetRequestType,

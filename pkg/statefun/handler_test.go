@@ -32,16 +32,16 @@ func greeter(ctx context.Context, storage AddressScopedStorage, msg Message) err
 
 	mailbox <- MessageBuilder{
 		Target: Address{
-			TypeName: TypeNameFrom("org.foo/greeter-java"),
-			Id:       "0",
+			FunctionType: TypeNameFrom("org.foo/greeter-java"),
+			Id:           "0",
 		},
 		Value: seen,
 	}
 
 	mailbox <- MessageBuilder{
 		Target: Address{
-			TypeName: TypeNameFrom("night/owl"),
-			Id:       "1",
+			FunctionType: TypeNameFrom("night/owl"),
+			Id:           "1",
 		},
 		Value: "hoo hoo",
 		Delay: time.Duration(1) * time.Hour,

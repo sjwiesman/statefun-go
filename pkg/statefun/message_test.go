@@ -11,8 +11,8 @@ func TestBasicIntMessage(t *testing.T) {
 
 	message, err := MessageBuilder{
 		Target: Address{
-			TypeName: typename,
-			Id:       "a",
+			FunctionType: typename,
+			Id:           "a",
 		},
 		Value: int32(1),
 	}.ToMessage()
@@ -30,8 +30,8 @@ func TestMessageWithType(t *testing.T) {
 
 	message, err := MessageBuilder{
 		Target: Address{
-			TypeName: typename,
-			Id:       "a",
+			FunctionType: typename,
+			Id:           "a",
 		},
 		Value:     float32(5.0),
 		ValueType: Float32Type,

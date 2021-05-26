@@ -11,6 +11,33 @@ import (
 	"strings"
 )
 
+// This interface is the core abstraction used byt Stateful
+// Function's type system, and consists of a few things
+// that StateFun uses to handle Message's and ValueSpec's
+//
+// 1. TypeName to identify the type.
+// 2. (De)serialization methods for marshalling and unmarshalling data
+//
+// Cross-language primitive types
+//
+// StateFun's type system has cross-language support for common primitive
+// types, such as boolean, integer (int32), long (int64), etc. These
+// primitive types have built-in Type's implemented for them already
+// with predefined TypeName's.
+//
+// These primitives have standard encoding across all StateFun language
+// SDKs, so functions in various other languages (Java, Python, etc) can
+// message Golang functions by directly sending supported primitive
+// values as message arguments. Moreover, the type system is used for
+// state values as well; so you can expect that a function can safely
+// read previous state after reimplementing it in a different language.
+//
+// Common custom types
+//
+// The type system is also very easily extensible to support more complex types.
+// The Go SDK ships with predefined support for JSON and Protobuf - see MakeJsonType
+// MakeProtobufType. For other formats, it is just a matter of implementing
+// your own Type with a custom typename and serializer.
 type Type interface {
 	GetTypeName() TypeName
 
@@ -176,6 +203,8 @@ type jsonType struct {
 	typeName TypeName
 }
 
+// Creates a new Type with a given TypeName
+// using the standard Go JSON library.
 func MakeJsonType(name TypeName) Type {
 	return jsonType{typeName: name}
 }
@@ -196,10 +225,12 @@ type protoType struct {
 	typeName TypeName
 }
 
+// Creates a new Type for the given protobuf Message.
 func MakeProtobufType(m proto.Message) Type {
 	return MakeProtobufTypeWithNamespace(m, "type.googleapis.com")
 }
 
+// Creates a new Type for the given protobuf Message with a custom namespace.
 func MakeProtobufTypeWithNamespace(m proto.Message, namespace string) Type {
 	name := proto.MessageName(m)
 	tName, _ := TypeNameFromParts(namespace, string(name))

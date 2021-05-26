@@ -7,16 +7,30 @@ import (
 	"google.golang.org/protobuf/proto"
 	"log"
 	"net/http"
-	"statefun-sdk-go/pkg/statefun/internal"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 )
 
+// A registry for multiple StatefulFunction's. A RequestReplyHandler
+// can be created from the registry that understands how to dispatch
+// invocation requests to the registered functions as well as encode
+// side-effects (e.g., sending messages to other functions or updating
+// values in storage) as the response.
 type StatefulFunctions interface {
+
+	// Registers a StatefulFunctionSpec, which will be
+	// used to build the runtime function.
 	WithSpec(spec StatefulFunctionSpec) StatefulFunctions
 
+	// Creates a RequestReplyHandler from the registered
+	// function specs.
 	AsHandler() RequestReplyHandler
 }
 
+// The RequestReplyHandler processes messages
+// from the runtime, invokes functions, and encodes
+// side effects. The handler implements http.Handler
+// so it can easily be embedded in standard Go server
+// frameworks.
 type RequestReplyHandler interface {
 	http.Handler
 
@@ -26,6 +40,7 @@ type RequestReplyHandler interface {
 	Invoke(ctx context.Context, payload []byte) ([]byte, error)
 }
 
+// Creates a new StatefulFunctions registry.
 func StatefulFunctionsBuilder() StatefulFunctions {
 	return &handler{
 		module:     map[TypeName]StatefulFunction{},
@@ -43,18 +58,20 @@ func (h *handler) WithSpec(spec StatefulFunctionSpec) StatefulFunctions {
 	h.stateSpecs[spec.FunctionType] = make(map[string]*protocol.FromFunction_PersistedValueSpec, len(spec.States))
 
 	for _, state := range spec.States {
+		if err := validateValueSpec(state); err != nil {
+			log.Panic(err)
+		}
+
 		expiration := &protocol.FromFunction_ExpirationSpec{}
-		if state.Expiration == nil {
+		switch state.Expiration.expirationType {
+		case none:
 			expiration.Mode = protocol.FromFunction_ExpirationSpec_NONE
-		} else {
-			switch state.Expiration.expirationType {
-			case expireAfterWrite:
-				expiration.Mode = protocol.FromFunction_ExpirationSpec_AFTER_WRITE
-				expiration.ExpireAfterMillis = state.Expiration.duration.Milliseconds()
-			case expireAfterCall:
-				expiration.Mode = protocol.FromFunction_ExpirationSpec_AFTER_INVOKE
-				expiration.ExpireAfterMillis = state.Expiration.duration.Milliseconds()
-			}
+		case expireAfterWrite:
+			expiration.Mode = protocol.FromFunction_ExpirationSpec_AFTER_WRITE
+			expiration.ExpireAfterMillis = state.Expiration.duration.Milliseconds()
+		case expireAfterCall:
+			expiration.Mode = protocol.FromFunction_ExpirationSpec_AFTER_INVOKE
+			expiration.ExpireAfterMillis = state.Expiration.duration.Milliseconds()
 		}
 
 		h.stateSpecs[spec.FunctionType][state.Name] = &protocol.FromFunction_PersistedValueSpec{
@@ -116,14 +133,14 @@ func (h *handler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
 
 	batch := toFunction.GetInvocation()
 	self := addressFromInternal(batch.Target)
-	function, exists := h.module[self.TypeName]
+	function, exists := h.module[self.FunctionType]
 
 	if !exists {
-		return nil, fmt.Errorf("unknown Function type %s", self.TypeName)
+		return nil, fmt.Errorf("unknown Function type %s", self.FunctionType)
 	}
 
-	ctx = context.WithValue(ctx, internal.SelfKey, self)
-	executor := newExecutor(ctx, batch, function, h.stateSpecs[self.TypeName])
+	ctx = setSelf(ctx, batch.Target)
+	executor := newExecutor(ctx, batch, function, h.stateSpecs[self.FunctionType])
 	fromFunction, err := executor.run()
 
 	if err != nil {

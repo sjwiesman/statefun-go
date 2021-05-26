@@ -68,7 +68,7 @@ func (k KafkaEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMess
 
 	return &protocol.FromFunction_EgressMessage{
 		EgressNamespace: k.Target.GetNamespace(),
-		EgressType:      k.Target.GetName(),
+		EgressType:      k.Target.GetType(),
 		Argument: &protocol.TypedValue{
 			Typename: "type.googleapis.com/io.statefun.sdk.egress.KafkaProducerRecord",
 			HasValue: true,
@@ -129,7 +129,7 @@ func (k KinesisEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMe
 
 	return &protocol.FromFunction_EgressMessage{
 		EgressNamespace: k.Target.GetNamespace(),
-		EgressType:      k.Target.GetName(),
+		EgressType:      k.Target.GetType(),
 		Argument: &protocol.TypedValue{
 			Typename: "type.googleapis.com/io.statefun.sdk.egress.KinesisEgressRecord",
 			HasValue: true,
@@ -162,7 +162,7 @@ func (g GenericEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMe
 
 	return &protocol.FromFunction_EgressMessage{
 		EgressNamespace: g.Target.GetNamespace(),
-		EgressType:      g.Target.GetName(),
+		EgressType:      g.Target.GetType(),
 		Argument: &protocol.TypedValue{
 			Typename: g.ValueType.GetTypeName().String(),
 			HasValue: true,

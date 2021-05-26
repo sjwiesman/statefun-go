@@ -24,7 +24,7 @@ var (
 type TypeName interface {
 	fmt.Stringer
 	GetNamespace() string
-	GetName() string
+	GetType() string
 }
 
 type typeName struct {
@@ -41,7 +41,7 @@ func (t typeName) GetNamespace() string {
 	return t.namespace
 }
 
-func (t typeName) GetName() string {
+func (t typeName) GetType() string {
 	return t.name
 }
 
@@ -93,15 +93,24 @@ func TypeNameFromParts(namespace, name string) (TypeName, error) {
 	}, nil
 }
 
+// An Address is the unique identity of an individual StatefulFunction,
+// containing all of the function's FunctionType and a unique identifier
+// within the type. The function's type denotes the type (or class) of function
+// to invoke, while the unique identifier addresses the invocation to a specific
+// function instance.
 type Address struct {
-	TypeName
-	Id string
+	FunctionType TypeName
+	Id           string
+}
+
+func (a Address) String() string {
+	return fmt.Sprintf("Address(%s, %s, %s)", a.FunctionType.GetNamespace(), a.FunctionType.GetType(), a.Id)
 }
 
 func addressFromInternal(a *protocol.Address) *Address {
 	name, _ := TypeNameFromParts(a.Namespace, a.Type)
 	return &Address{
-		TypeName: name,
-		Id:       a.Id,
+		FunctionType: name,
+		Id:           a.Id,
 	}
 }

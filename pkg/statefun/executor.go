@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"statefun-sdk-go/pkg/statefun/internal"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 )
 
@@ -34,13 +33,7 @@ func newExecutor(
 	close(invocations)
 
 	mailbox := make(chan Envelope)
-
-	// assignment to this variable is required,
-	// context stores the channel as interface{}
-	// and will not retain the correct type information
-	// leading to a runtime cast exception
-	var send chan<- Envelope = mailbox
-	ctx = context.WithValue(ctx, internal.MailboxKey, send)
+	ctx = setMailbox(ctx, mailbox)
 
 	return &executor{
 		ctx:         ctx,
@@ -153,11 +146,7 @@ func (e *executor) executeBatch(storage *storage) {
 				return
 			}
 
-			ctx := e.ctx
-			if invocation.Caller != nil {
-				caller := addressFromInternal(invocation.Caller)
-				ctx = context.WithValue(e.ctx, internal.CallerKey, caller)
-			}
+			ctx := setCaller(e.ctx, invocation.Caller)
 
 			msg := Message{
 				target:     e.target,
