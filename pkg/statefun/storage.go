@@ -31,6 +31,24 @@ func newCell(state *protocol.ToFunction_PersistedValue) cell {
 	return c
 }
 
+func (c cell) getStateMutation(name string) *protocol.FromFunction_PersistedValueMutation {
+	if !c.mutated {
+		return nil
+	}
+
+	mutationType := protocol.FromFunction_PersistedValueMutation_DELETE
+	if c.typedValue.HasValue {
+		mutationType = protocol.FromFunction_PersistedValueMutation_MODIFY
+		c.typedValue.Value = c.buffer.Bytes()
+	}
+
+	return &protocol.FromFunction_PersistedValueMutation{
+		MutationType: mutationType,
+		StateName:    name,
+		StateValue:   c.typedValue,
+	}
+}
+
 type storage struct {
 	mutex sync.RWMutex
 	cells map[string]cell
@@ -123,6 +141,7 @@ func (s *storage) Set(spec ValueSpec, value interface{}) {
 
 	cell.typedValue.HasValue = true
 	cell.mutated = true
+	s.cells[spec.Name] = cell
 }
 
 func (s *storage) Clear(spec ValueSpec) {
@@ -137,6 +156,18 @@ func (s *storage) Clear(spec ValueSpec) {
 	cell.buffer.Reset()
 	cell.typedValue.HasValue = false
 	cell.mutated = true
+}
+
+func (s *storage) getStateMutations() []*protocol.FromFunction_PersistedValueMutation {
+	mutations := make([]*protocol.FromFunction_PersistedValueMutation, 0)
+	for name, cell := range s.cells {
+		mutation := cell.getStateMutation(name)
+		if mutation != nil {
+			mutations = append(mutations, mutation)
+		}
+	}
+
+	return mutations
 }
 
 type MissingSpecs []*protocol.FromFunction_PersistedValueSpec

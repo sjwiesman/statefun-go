@@ -180,7 +180,7 @@ func TestHandler(t *testing.T) {
 }
 
 // global variable prevents the compiler
-// from optimizing away the benchmarkg
+// from optimizing away the benchmarkingg
 var response *protocol.FromFunction
 
 func BenchmarkHandler(b *testing.B) {
