@@ -66,11 +66,13 @@ func greeter(ctx context.Context, storage AddressScopedStorage, msg Message) err
 
 func TestMissingStateValues(t *testing.T) {
 	builder := StatefulFunctionsBuilder()
-	builder.WithSpec(StatefulFunctionSpec{
+	err := builder.WithSpec(StatefulFunctionSpec{
 		FunctionType: TypeNameFrom("org.foo/greeter"),
 		States:       []ValueSpec{Seen},
 		Function:     StatefulFunctionPointer(greeter),
 	})
+
+	assert.NoError(t, err, "registering a function should succeed")
 
 	server := httptest.NewServer(builder.AsHandler())
 	defer server.Close()
@@ -111,12 +113,13 @@ func TestMissingStateValues(t *testing.T) {
 
 func TestHandler(t *testing.T) {
 	builder := StatefulFunctionsBuilder()
-	builder.WithSpec(StatefulFunctionSpec{
+	err := builder.WithSpec(StatefulFunctionSpec{
 		FunctionType: TypeNameFrom("org.foo/greeter"),
 		States:       []ValueSpec{Seen},
 		Function:     StatefulFunctionPointer(greeter),
 	})
 
+	assert.NoError(t, err, "registering a function should succeed")
 	server := httptest.NewServer(builder.AsHandler())
 	defer server.Close()
 

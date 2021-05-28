@@ -10,14 +10,32 @@ import (
 
 type EgressBuilder interface {
 	Envelope
+
 	toEgressMessage() (*protocol.FromFunction_EgressMessage, error)
 }
 
+// Builds a message that can be emitted to a Kafka generic egress.
+// If a ValueType is provided, then Value will be serialized according to the
+// provided ValueType's serializer. Otherwise we will try to convert Value to bytes
+// if it is one of:
+//   - utf-8 string
+//   - []bytes
+//   - an int (as defined by Kafka's serialization format)
+//   - float (as defined by Kafka's serialization format)
 type KafkaEgressBuilder struct {
-	Target    TypeName
-	Topic     string
-	Key       string
-	Value     interface{}
+	// The TypeName as specified in module.yaml
+	Target TypeName
+
+	// The Kafka destination topic for that record
+	Topic string
+
+	// The utf8 encoded string key to produce (can be empty)
+	Key string
+
+	// The value to produce
+	Value interface{}
+
+	// An optional hint to this value type
 	ValueType Type
 }
 
@@ -77,12 +95,29 @@ func (k KafkaEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMess
 	}, nil
 }
 
+// Builds a message that can be emitted to a Kinesis generic egress.
+// If a ValueType is provided, then Value will be serialized according to the
+// provided ValueType's serializer. Otherwise we will try to convert Value to bytes
+// if it is one of:
+//   - utf-8 string
+//   - []byte
 type KinesisEgressBuilder struct {
-	Target          TypeName
-	Stream          string
-	Value           interface{}
-	ValueType       Type
-	PartitionKey    string
+	// The TypeName as specified in module.yaml
+	Target TypeName
+
+	// The Kinesis destination stream for that record
+	Stream string
+
+	// The value to produce
+	Value interface{}
+
+	// An optional hint to this value type
+	ValueType Type
+
+	// The utf8 encoded string partition key to use
+	PartitionKey string
+
+	// A utf8 encoded string explicit hash key to use (can be empty)
 	ExplicitHashKey string
 }
 
@@ -138,9 +173,17 @@ func (k KinesisEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMe
 	}, nil
 }
 
+// Create a generic egress record. For Kafka
+// and Kinesis see KafkaEgressBuilder and
+// KinesisEgressBuilder respectively
 type GenericEgressBuilder struct {
-	Target    TypeName
-	Value     interface{}
+	// The TypeName as specified when registered
+	Target TypeName
+
+	// The value to produce
+	Value interface{}
+
+	// The values type
 	ValueType Type
 }
 

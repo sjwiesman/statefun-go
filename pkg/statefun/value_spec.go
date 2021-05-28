@@ -69,7 +69,7 @@ func ExpireAfterWrite(duration time.Duration) Expiration {
 // ValueSpec is registered for a function by configuring it on the function's
 // associated StatefulFunctionSpec.
 type ValueSpec struct {
-	// The given name of the persistent value. The name must be a valid
+	// The given tpe of the persistent value. The tpe must be a valid
 	// identifier conforming to the following rules:
 	//
 	// 1. First character must be an alphabet letter [a-z] / [A-Z], or an underscore '_'.
@@ -87,7 +87,7 @@ type ValueSpec struct {
 }
 
 const invalidNameMessage = `
-invalid state name %s. state names can only start with alphabet letters [a-z][A-Z] or an underscore '_' followed by zero or more characters that are alphanumeric or underscores
+invalid state tpe %s. state names can only start with alphabet letters [a-z][A-Z] or an underscore '_' followed by zero or more characters that are alphanumeric or underscores
 `
 
 func validateValueSpec(s ValueSpec) error {

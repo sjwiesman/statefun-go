@@ -19,7 +19,7 @@ type StatefulFunctions interface {
 
 	// Registers a StatefulFunctionSpec, which will be
 	// used to build the runtime function.
-	WithSpec(spec StatefulFunctionSpec) StatefulFunctions
+	WithSpec(spec StatefulFunctionSpec) error
 
 	// Creates a RequestReplyHandler from the registered
 	// function specs.
@@ -34,9 +34,7 @@ type StatefulFunctions interface {
 type RequestReplyHandler interface {
 	http.Handler
 
-	// Handler for processing arbitrary payloads.
-	// This method provides compliance with AWS Lambda
-	// handler.
+	// This method provides compliance with AWS Lambda handler
 	Invoke(ctx context.Context, payload []byte) ([]byte, error)
 }
 
@@ -53,13 +51,21 @@ type handler struct {
 	stateSpecs map[TypeName]map[string]*protocol.FromFunction_PersistedValueSpec
 }
 
-func (h *handler) WithSpec(spec StatefulFunctionSpec) StatefulFunctions {
+func (h *handler) WithSpec(spec StatefulFunctionSpec) error {
+	if _, exists := h.module[spec.FunctionType]; exists {
+		return fmt.Errorf("failed to register Stateful Function %s, there is already a spec registered under that tpe", spec.FunctionType)
+	}
+
+	if spec.Function == nil {
+		return fmt.Errorf("failed to register Stateful Function %s, the Function instance cannot be nil", spec.FunctionType)
+	}
+
 	h.module[spec.FunctionType] = spec.Function
 	h.stateSpecs[spec.FunctionType] = make(map[string]*protocol.FromFunction_PersistedValueSpec, len(spec.States))
 
 	for _, state := range spec.States {
 		if err := validateValueSpec(state); err != nil {
-			log.Panic(err)
+			return fmt.Errorf("failed to register Stateful Function %s: %w", spec.FunctionType, err)
 		}
 
 		expiration := &protocol.FromFunction_ExpirationSpec{}
@@ -81,7 +87,7 @@ func (h *handler) WithSpec(spec StatefulFunctionSpec) StatefulFunctions {
 		}
 	}
 
-	return h
+	return nil
 }
 
 func (h *handler) AsHandler() RequestReplyHandler {
@@ -131,12 +137,21 @@ func (h *handler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to unmarshal ToFunction: %w", err)
 	}
 
+	fromFunction, err := h.invoke(ctx, &toFunction)
+	if err != nil {
+		return nil, err
+	}
+
+	return proto.Marshal(fromFunction)
+}
+
+func (h *handler) invoke(ctx context.Context, toFunction *protocol.ToFunction) (*protocol.FromFunction, error) {
 	batch := toFunction.GetInvocation()
 	self := addressFromInternal(batch.Target)
 	function, exists := h.module[self.FunctionType]
 
 	if !exists {
-		return nil, fmt.Errorf("unknown Function type %s", self.FunctionType)
+		return nil, fmt.Errorf("unknown function type %s", self.FunctionType)
 	}
 
 	ctx = setSelf(ctx, batch.Target)
@@ -146,6 +161,5 @@ func (h *handler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return proto.Marshal(fromFunction)
+	return fromFunction, nil
 }

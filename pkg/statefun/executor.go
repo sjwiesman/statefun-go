@@ -126,6 +126,7 @@ func (e *executor) run() (*protocol.FromFunction, error) {
 
 func (e *executor) executeBatch(storage *storage) {
 	defer close(e.mailbox)
+
 	defer func() {
 		if r := recover(); r != nil {
 			switch r := r.(type) {

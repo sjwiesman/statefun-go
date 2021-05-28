@@ -1,8 +1,8 @@
 package statefun
 
 import (
-	"bytes"
 	"fmt"
+	"statefun-sdk-go/pkg/statefun/internal"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 	"sync"
 )
@@ -25,7 +25,7 @@ type AddressScopedStorage interface {
 	// the types zero value.
 	Get(spec ValueSpec, receiver interface{}) (exists bool)
 
-	// Sets teh value for the provided ValueSpec, scoped
+	// Sets the value for the provided ValueSpec, scoped
 	// to the current invoked Address.
 	Set(spec ValueSpec, value interface{})
 
@@ -37,43 +37,9 @@ type AddressScopedStorage interface {
 	Remove(spec ValueSpec)
 }
 
-type cell struct {
-	typedValue *protocol.TypedValue
-	buffer     bytes.Buffer
-	mutated    bool
-}
-
-func newCell(state *protocol.ToFunction_PersistedValue) cell {
-	c := cell{
-		typedValue: state.StateValue,
-	}
-
-	_, _ = c.buffer.Read(c.typedValue.Value)
-	c.typedValue.Value = nil
-	return c
-}
-
-func (c cell) getStateMutation(name string) *protocol.FromFunction_PersistedValueMutation {
-	if !c.mutated {
-		return nil
-	}
-
-	mutationType := protocol.FromFunction_PersistedValueMutation_DELETE
-	if c.typedValue.HasValue {
-		mutationType = protocol.FromFunction_PersistedValueMutation_MODIFY
-		c.typedValue.Value = c.buffer.Bytes()
-	}
-
-	return &protocol.FromFunction_PersistedValueMutation{
-		MutationType: mutationType,
-		StateName:    name,
-		StateValue:   c.typedValue,
-	}
-}
-
 type storage struct {
 	mutex sync.RWMutex
-	cells map[string]cell
+	cells map[string]*internal.Cell
 }
 
 type StorageFactory interface {
@@ -88,7 +54,7 @@ func NewStorageFactory(
 ) StorageFactory {
 	storage := &storage{
 		mutex: sync.RWMutex{},
-		cells: make(map[string]cell, len(specs)),
+		cells: make(map[string]*internal.Cell, len(specs)),
 	}
 
 	states := make(map[string]*protocol.FromFunction_PersistedValueSpec, len(specs))
@@ -103,7 +69,7 @@ func NewStorageFactory(
 
 		delete(states, state.StateName)
 
-		storage.cells[state.StateName] = newCell(state)
+		storage.cells[state.StateName] = internal.NewCell(state)
 	}
 
 	if len(states) > 0 {
@@ -135,11 +101,11 @@ func (s *storage) Get(spec ValueSpec, receiver interface{}) bool {
 		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
-	if !cell.typedValue.HasValue {
+	if !cell.HasValue() {
 		return false
 	}
 
-	if err := spec.ValueType.Deserialize(&cell.buffer, receiver); err != nil {
+	if err := spec.ValueType.Deserialize(cell, receiver); err != nil {
 		panic(fmt.Errorf("failed to deserialize %s: %w", spec.Name, err))
 	}
 
@@ -155,15 +121,10 @@ func (s *storage) Set(spec ValueSpec, value interface{}) {
 		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
-	cell.buffer.Reset()
-	err := spec.ValueType.Serialize(&cell.buffer, value)
+	err := spec.ValueType.Serialize(cell, value)
 	if err != nil {
 		panic(fmt.Errorf("failed to serialize %s: %w", spec.Name, err))
 	}
-
-	cell.typedValue.HasValue = true
-	cell.mutated = true
-	s.cells[spec.Name] = cell
 }
 
 func (s *storage) Remove(spec ValueSpec) {
@@ -175,16 +136,13 @@ func (s *storage) Remove(spec ValueSpec) {
 		panic(fmt.Errorf("unregistered ValueSpec %s", spec.Name))
 	}
 
-	cell.buffer.Reset()
-	cell.typedValue.HasValue = false
-	cell.mutated = true
+	cell.Reset()
 }
 
 func (s *storage) getStateMutations() []*protocol.FromFunction_PersistedValueMutation {
 	mutations := make([]*protocol.FromFunction_PersistedValueMutation, 0)
 	for name, cell := range s.cells {
-		mutation := cell.getStateMutation(name)
-		if mutation != nil {
+		if mutation := cell.GetStateMutation(name); mutation != nil {
 			mutations = append(mutations, mutation)
 		}
 	}

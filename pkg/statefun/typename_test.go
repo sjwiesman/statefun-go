@@ -6,11 +6,11 @@ import (
 )
 
 func TestTypeNameParse(t *testing.T) {
-	typename, err := ParseTypeName("namespace/name")
+	typename, err := ParseTypeName("namespace/tpe")
 
 	assert.NoError(t, err)
 	assert.Equal(t, typename.GetNamespace(), "namespace")
-	assert.Equal(t, typename.GetType(), "name")
+	assert.Equal(t, typename.GetType(), "tpe")
 }
 
 func TestNoNamespace(t *testing.T) {

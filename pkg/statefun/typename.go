@@ -29,7 +29,7 @@ type TypeName interface {
 
 type typeName struct {
 	namespace      string
-	name           string
+	tpe            string
 	typenameString string
 }
 
@@ -42,7 +42,7 @@ func (t typeName) GetNamespace() string {
 }
 
 func (t typeName) GetType() string {
-	return t.name
+	return t.tpe
 }
 
 // Creates a TypeName from a canonical string
@@ -77,19 +77,19 @@ func ParseTypeName(typename string) (TypeName, error) {
 	return TypeNameFromParts(namespace, name)
 }
 
-func TypeNameFromParts(namespace, name string) (TypeName, error) {
+func TypeNameFromParts(namespace, tpe string) (TypeName, error) {
 	if len(namespace) == 0 {
 		return nil, errors.New("namespace cannot be empty")
 	}
 
-	if len(name) == 0 {
-		return nil, errors.New("Name cannot be empty")
+	if len(tpe) == 0 {
+		return nil, errors.New("type cannot be empty")
 	}
 
 	return typeName{
 		namespace:      namespace,
-		name:           name,
-		typenameString: fmt.Sprintf("%s/%s", namespace, name),
+		tpe:            tpe,
+		typenameString: fmt.Sprintf("%s/%s", namespace, tpe),
 	}, nil
 }
 

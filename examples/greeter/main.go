@@ -92,13 +92,13 @@ func main() {
 			ValueType: Int32Type,
 		}}
 
-	builder.WithSpec(StatefulFunctionSpec{
+	_ = builder.WithSpec(StatefulFunctionSpec{
 		FunctionType: PersonFunc,
 		States:       []ValueSpec{person.Visits},
 		Function:     person,
 	})
 
-	builder.WithSpec(StatefulFunctionSpec{
+	_ = builder.WithSpec(StatefulFunctionSpec{
 		FunctionType: GreeterFunc,
 		Function:     StatefulFunctionPointer(greeter),
 	})
