@@ -9,8 +9,6 @@ import (
 )
 
 type EgressBuilder interface {
-	Envelope
-
 	toEgressMessage() (*protocol.FromFunction_EgressMessage, error)
 }
 
@@ -35,8 +33,8 @@ type KafkaEgressBuilder struct {
 	// The value to produce
 	Value interface{}
 
-	// An optional hint to this value type
-	ValueType Type
+	// An optional hint to this values type
+	ValueType SimpleType
 }
 
 func (k KafkaEgressBuilder) isEnvelope() {}
@@ -112,7 +110,7 @@ type KinesisEgressBuilder struct {
 	Value interface{}
 
 	// An optional hint to this value type
-	ValueType Type
+	ValueType SimpleType
 
 	// The utf8 encoded string partition key to use
 	PartitionKey string
@@ -120,8 +118,6 @@ type KinesisEgressBuilder struct {
 	// A utf8 encoded string explicit hash key to use (can be empty)
 	ExplicitHashKey string
 }
-
-func (k KinesisEgressBuilder) isEnvelope() {}
 
 func (k KinesisEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMessage, error) {
 	if k.Target == nil {
@@ -184,10 +180,8 @@ type GenericEgressBuilder struct {
 	Value interface{}
 
 	// The values type
-	ValueType Type
+	ValueType SimpleType
 }
-
-func (g GenericEgressBuilder) isEnvelope() {}
 
 func (g GenericEgressBuilder) toEgressMessage() (*protocol.FromFunction_EgressMessage, error) {
 	if g.Target == nil {

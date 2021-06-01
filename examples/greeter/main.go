@@ -1,11 +1,10 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
-	. "statefun-sdk-go/pkg/statefun"
+	"statefun-sdk-go/pkg/statefun"
 )
 
 type GreetRequest struct {
@@ -13,62 +12,54 @@ type GreetRequest struct {
 	Visits int32  `json:"visits"`
 }
 
-var GreetRequestType = MakeJsonType(TypeNameFrom("example/GreetRequest"))
+var GreetRequestType = statefun.MakeJsonType(statefun.TypeNameFrom("example/GreetRequest"))
 
-var PersonFunc = TypeNameFrom("example/person")
+var PersonFunc = statefun.TypeNameFrom("example/person")
 
-var GreeterFunc = TypeNameFrom("example/greeter")
+var GreeterFunc = statefun.TypeNameFrom("example/greeter")
 
-var KafkaEgress = TypeNameFrom("example/greets")
+var KafkaEgress = statefun.TypeNameFrom("example/greets")
 
 type Person struct {
-	Visits ValueSpec
+	Visits statefun.ValueSpec
 }
 
-func (p Person) Invoke(
-	ctx context.Context,
-	storage AddressScopedStorage,
-	msg Message) error {
+func (p Person) Invoke(ctx statefun.Context, msg statefun.Message) error {
 
 	var visits int32
-	_ = storage.Get(p.Visits, &visits)
+	_ = ctx.Storage().Get(p.Visits, &visits)
 	visits += 1
-	storage.Set(p.Visits, visits)
+	ctx.Storage().Set(p.Visits, visits)
 
 	request := GreetRequest{}
 	_ = msg.As(GreetRequestType, &request)
 	request.Visits = visits
 
-	mailbox := Mailbox(ctx)
-	mailbox <- MessageBuilder{
-		Target: Address{
+	ctx.Send(statefun.MessageBuilder{
+		Target: statefun.Address{
 			FunctionType: GreeterFunc,
 			Id:           request.Name,
 		},
 		Value:     request,
 		ValueType: GreetRequestType,
-	}
+	})
 
 	return nil
 }
 
-func greeter(
-	ctx context.Context,
-	_ AddressScopedStorage,
-	msg Message) error {
+func greeter(ctx statefun.Context, msg statefun.Message) error {
 
 	var request GreetRequest
 	_ = msg.As(GreetRequestType, &request)
 
 	greeting := computeGreeting(request.Name, request.Visits)
 
-	mailbox := Mailbox(ctx)
-	mailbox <- KafkaEgressBuilder{
+	ctx.SendEgress(statefun.KafkaEgressBuilder{
 		Target: KafkaEgress,
 		Topic:  "greetings",
 		Key:    request.Name,
 		Value:  greeting,
-	}
+	})
 
 	return nil
 }
@@ -84,23 +75,23 @@ func computeGreeting(name string, seen int32) string {
 
 func main() {
 
-	builder := StatefulFunctionsBuilder()
+	builder := statefun.StatefulFunctionsBuilder()
 
 	person := Person{
-		Visits: ValueSpec{
+		Visits: statefun.ValueSpec{
 			Name:      "visits",
-			ValueType: Int32Type,
+			ValueType: statefun.Int32Type,
 		}}
 
-	_ = builder.WithSpec(StatefulFunctionSpec{
+	_ = builder.WithSpec(statefun.StatefulFunctionSpec{
 		FunctionType: PersonFunc,
-		States:       []ValueSpec{person.Visits},
+		States:       []statefun.ValueSpec{person.Visits},
 		Function:     person,
 	})
 
-	_ = builder.WithSpec(StatefulFunctionSpec{
+	_ = builder.WithSpec(statefun.StatefulFunctionSpec{
 		FunctionType: GreeterFunc,
-		Function:     StatefulFunctionPointer(greeter),
+		Function:     statefun.StatefulFunctionPointer(greeter),
 	})
 
 	http.Handle("/statefun", builder.AsHandler())

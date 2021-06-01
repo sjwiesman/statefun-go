@@ -5,17 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
-	"time"
 )
 
 type MessageBuilder struct {
 	Target    Address
 	Value     interface{}
-	ValueType Type
-	Delay     time.Duration
+	ValueType SimpleType
 }
-
-func (m MessageBuilder) isEnvelope() {}
 
 func (m MessageBuilder) ToMessage() (Message, error) {
 	if m.Target == (Address{}) {
@@ -43,7 +39,7 @@ func (m MessageBuilder) ToMessage() (Message, error) {
 		case string, *string:
 			m.ValueType = StringType
 		default:
-			return Message{}, errors.New("message contains non-primitive type, please supply a non-nil Type")
+			return Message{}, errors.New("message contains non-primitive type, please supply a non-nil SimpleType")
 		}
 	}
 
@@ -64,14 +60,12 @@ func (m MessageBuilder) ToMessage() (Message, error) {
 			HasValue: true,
 			Value:    buffer.Bytes(),
 		},
-		delayMs: m.Delay.Milliseconds(),
 	}, nil
 }
 
 type Message struct {
 	target     *protocol.Address
 	typedValue *protocol.TypedValue
-	delayMs    int64
 }
 
 func (m *Message) IsBool() bool {
@@ -147,10 +141,18 @@ func (m *Message) AsString() string {
 	return receiver
 }
 
-func (m *Message) Is(t Type) bool {
+func (m *Message) Is(t SimpleType) bool {
 	return t.GetTypeName().String() == m.typedValue.Typename
 }
 
-func (m *Message) As(t Type, receiver interface{}) error {
+func (m *Message) As(t SimpleType, receiver interface{}) error {
 	return t.Deserialize(bytes.NewReader(m.typedValue.Value), receiver)
+}
+
+func (m *Message) ValueTypeName() TypeName {
+	return TypeNameFrom(m.typedValue.Typename)
+}
+
+func (m *Message) RawValue() []byte {
+	return m.typedValue.Value
 }

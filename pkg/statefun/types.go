@@ -22,7 +22,7 @@ import (
 //
 // StateFun's type system has cross-language support for common primitive
 // types, such as boolean, integer (int32), long (int64), etc. These
-// primitive types have built-in Type's implemented for them already
+// primitive types have built-in SimpleType's implemented for them already
 // with predefined TypeName's.
 //
 // These primitives have standard encoding across all StateFun language
@@ -37,8 +37,8 @@ import (
 // The type system is also very easily extensible to support more complex types.
 // The Go SDK ships with predefined support for JSON and Protobuf - see MakeJsonType
 // MakeProtobufType. For other formats, it is just a matter of implementing
-// your own Type with a custom typename and serializer.
-type Type interface {
+// your own SimpleType with a custom typename and serializer.
+type SimpleType interface {
 	GetTypeName() TypeName
 
 	Deserialize(r io.Reader, receiver interface{}) error
@@ -203,9 +203,9 @@ type jsonType struct {
 	typeName TypeName
 }
 
-// Creates a new Type with a given TypeName
+// Creates a new SimpleType with a given TypeName
 // using the standard Go JSON library.
-func MakeJsonType(name TypeName) Type {
+func MakeJsonType(name TypeName) SimpleType {
 	return jsonType{typeName: name}
 }
 
@@ -225,13 +225,13 @@ type protoType struct {
 	typeName TypeName
 }
 
-// Creates a new Type for the given protobuf Message.
-func MakeProtobufType(m proto.Message) Type {
+// Creates a new SimpleType for the given protobuf Message.
+func MakeProtobufType(m proto.Message) SimpleType {
 	return MakeProtobufTypeWithNamespace(m, "type.googleapis.com")
 }
 
-// Creates a new Type for the given protobuf Message with a custom namespace.
-func MakeProtobufTypeWithNamespace(m proto.Message, namespace string) Type {
+// Creates a new SimpleType for the given protobuf Message with a custom namespace.
+func MakeProtobufTypeWithNamespace(m proto.Message, namespace string) SimpleType {
 	name := proto.MessageName(m)
 	tName, _ := TypeNameFromParts(namespace, string(name))
 	return protoType{

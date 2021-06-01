@@ -42,18 +42,17 @@ type storage struct {
 	cells map[string]*internal.Cell
 }
 
-type StorageFactory interface {
-	GetStorage() *storage
+type storageFactory interface {
+	getStorage() *storage
 
-	GetMissingSpecs() []*protocol.FromFunction_PersistedValueSpec
+	getMissingSpecs() []*protocol.FromFunction_PersistedValueSpec
 }
 
-func NewStorageFactory(
+func newStorageFactory(
 	batch *protocol.ToFunction_InvocationBatchRequest,
 	specs map[string]*protocol.FromFunction_PersistedValueSpec,
-) StorageFactory {
+) storageFactory {
 	storage := &storage{
-		mutex: sync.RWMutex{},
 		cells: make(map[string]*internal.Cell, len(specs)),
 	}
 
@@ -84,11 +83,11 @@ func NewStorageFactory(
 	}
 }
 
-func (s *storage) GetStorage() *storage {
+func (s *storage) getStorage() *storage {
 	return s
 }
 
-func (s *storage) GetMissingSpecs() []*protocol.FromFunction_PersistedValueSpec {
+func (s *storage) getMissingSpecs() []*protocol.FromFunction_PersistedValueSpec {
 	return nil
 }
 
@@ -152,10 +151,10 @@ func (s *storage) getStateMutations() []*protocol.FromFunction_PersistedValueMut
 
 type MissingSpecs []*protocol.FromFunction_PersistedValueSpec
 
-func (m MissingSpecs) GetStorage() *storage {
+func (m MissingSpecs) getStorage() *storage {
 	return nil
 }
 
-func (m MissingSpecs) GetMissingSpecs() []*protocol.FromFunction_PersistedValueSpec {
+func (m MissingSpecs) getMissingSpecs() []*protocol.FromFunction_PersistedValueSpec {
 	return m
 }

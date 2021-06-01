@@ -78,9 +78,9 @@ type ValueSpec struct {
 	// 3. Must not contain any spaces.
 	Name string
 
-	// The Type of the persistent value. Either
+	// The SimpleType of the persistent value. Either
 	// a built-in PrimitiveType or custom implementation.
-	ValueType Type
+	ValueType SimpleType
 
 	// An optional expiration configuration.
 	Expiration Expiration

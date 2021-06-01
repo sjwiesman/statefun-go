@@ -2,7 +2,6 @@ package statefun
 
 import (
 	"bytes"
-	"context"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
@@ -18,48 +17,45 @@ var Seen = ValueSpec{
 	ValueType: Int32Type,
 }
 
-func greeter(ctx context.Context, storage AddressScopedStorage, msg Message) error {
+func greeter(ctx Context, msg Message) error {
 	if msg.IsString() {
 		_ = msg.AsString()
 	}
 
 	var seen int32
-	storage.Get(Seen, &seen)
+	ctx.Storage().Get(Seen, &seen)
 	seen += 1
-	storage.Set(Seen, seen)
+	ctx.Storage().Set(Seen, seen)
 
-	mailbox := Mailbox(ctx)
-
-	mailbox <- MessageBuilder{
+	ctx.Send(MessageBuilder{
 		Target: Address{
 			FunctionType: TypeNameFrom("org.foo/greeter-java"),
 			Id:           "0",
 		},
 		Value: seen,
-	}
+	})
 
-	mailbox <- MessageBuilder{
+	ctx.SendAfter(time.Duration(1)*time.Hour, MessageBuilder{
 		Target: Address{
 			FunctionType: TypeNameFrom("night/owl"),
 			Id:           "1",
 		},
 		Value: "hoo hoo",
-		Delay: time.Duration(1) * time.Hour,
-	}
+	})
 
-	mailbox <- KafkaEgressBuilder{
+	ctx.SendEgress(KafkaEgressBuilder{
 		Target: TypeNameFrom("e/kafka"),
 		Topic:  "out",
 		Key:    "abc",
 		Value:  int32(133742),
-	}
+	})
 
-	mailbox <- KinesisEgressBuilder{
+	ctx.SendEgress(KinesisEgressBuilder{
 		Target:       TypeNameFrom("e/kinesis"),
 		Stream:       "out",
 		Value:        "hello there",
 		PartitionKey: "abc",
-	}
+	})
 
 	return nil
 }
@@ -182,57 +178,7 @@ func TestHandler(t *testing.T) {
 	assert.Equal(t, "type.googleapis.com/io.statefun.sdk.egress.KafkaProducerRecord", result.OutgoingEgresses[0].Argument.Typename)
 }
 
-// global variable prevents the compiler
-// from optimizing away the benchmarkingg
-var response *protocol.FromFunction
-
-func BenchmarkHandler(b *testing.B) {
-	toFunction := protocol.ToFunction{
-		Request: &protocol.ToFunction_Invocation_{
-			Invocation: &protocol.ToFunction_InvocationBatchRequest{
-				Target: &protocol.Address{
-					Namespace: "org.foo",
-					Type:      "greeter",
-					Id:        "0",
-				},
-				State: []*protocol.ToFunction_PersistedValue{
-					{
-						StateName: "seen",
-						StateValue: &protocol.TypedValue{
-							Typename: "io.statefun.types/int",
-							HasValue: false,
-							Value:    nil,
-						},
-					},
-				},
-				Invocations: []*protocol.ToFunction_Invocation{
-					{
-						Caller:   nil,
-						Argument: toTypedValue(StringType, "Hello"),
-					},
-				},
-			},
-		},
-	}
-
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		e := newExecutor(
-			context.Background(),
-			toFunction.GetInvocation(),
-			StatefulFunctionPointer(greeter),
-			map[string]*protocol.FromFunction_PersistedValueSpec{
-				"seen": {
-					StateName:    "seen",
-					TypeTypename: "io.statefun.types/int",
-				},
-			})
-
-		response, _ = e.run()
-	}
-}
-
-func toTypedValue(valueType Type, value interface{}) *protocol.TypedValue {
+func toTypedValue(valueType SimpleType, value interface{}) *protocol.TypedValue {
 	buffer := bytes.Buffer{}
 	if err := valueType.Serialize(&buffer, value); err != nil {
 		panic(err)

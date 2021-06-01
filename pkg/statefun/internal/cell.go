@@ -5,6 +5,8 @@ import (
 	"statefun-sdk-go/pkg/statefun/internal/protocol"
 )
 
+// A mutable persisted value.
+// This struct is not thread safe.
 type Cell struct {
 	typedValue *protocol.TypedValue
 	buffer     bytes.Buffer
