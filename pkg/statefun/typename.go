@@ -107,9 +107,9 @@ func (a Address) String() string {
 	return fmt.Sprintf("Address(%s, %s, %s)", a.FunctionType.GetNamespace(), a.FunctionType.GetType(), a.Id)
 }
 
-func addressFromInternal(a *protocol.Address) *Address {
+func addressFromInternal(a *protocol.Address) Address {
 	name, _ := TypeNameFromParts(a.Namespace, a.Type)
-	return &Address{
+	return Address{
 		FunctionType: name,
 		Id:           a.Id,
 	}

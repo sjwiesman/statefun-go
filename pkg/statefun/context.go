@@ -59,9 +59,6 @@ func (s *statefunContext) Caller() *Address {
 }
 
 func (s *statefunContext) Send(message MessageBuilder) {
-	s.Lock()
-	defer s.Unlock()
-
 	msg, err := message.ToMessage()
 
 	if err != nil {
@@ -73,13 +70,12 @@ func (s *statefunContext) Send(message MessageBuilder) {
 		Argument: msg.typedValue,
 	}
 
+	s.Lock()
 	s.response.OutgoingMessages = append(s.response.OutgoingMessages, invocation)
+	s.Unlock()
 }
 
 func (s *statefunContext) SendAfter(delay time.Duration, message MessageBuilder) {
-	s.Lock()
-	defer s.Unlock()
-
 	msg, err := message.ToMessage()
 
 	if err != nil {
@@ -92,18 +88,19 @@ func (s *statefunContext) SendAfter(delay time.Duration, message MessageBuilder)
 		DelayInMs: delay.Milliseconds(),
 	}
 
+	s.Lock()
 	s.response.DelayedInvocations = append(s.response.DelayedInvocations, invocation)
+	s.Unlock()
 }
 
 func (s *statefunContext) SendEgress(egress EgressBuilder) {
-	s.Lock()
-	defer s.Unlock()
-
 	msg, err := egress.toEgressMessage()
 
 	if err != nil {
 		panic(err)
 	}
 
+	s.Lock()
 	s.response.OutgoingEgresses = append(s.response.OutgoingEgresses, msg)
+	s.Unlock()
 }

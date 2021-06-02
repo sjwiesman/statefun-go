@@ -178,6 +178,55 @@ func TestHandler(t *testing.T) {
 	assert.Equal(t, "type.googleapis.com/io.statefun.sdk.egress.KafkaProducerRecord", result.OutgoingEgresses[0].Argument.Typename)
 }
 
+func BenchmarkHandler(t *testing.B) {
+	builder := StatefulFunctionsBuilder()
+	_ = builder.WithSpec(StatefulFunctionSpec{
+		FunctionType: TypeNameFrom("org.foo/greeter"),
+		States:       []ValueSpec{Seen},
+		Function:     StatefulFunctionPointer(greeter),
+	})
+
+	server := httptest.NewServer(builder.AsHandler())
+	defer server.Close()
+
+	toFunction := protocol.ToFunction{
+		Request: &protocol.ToFunction_Invocation_{
+			Invocation: &protocol.ToFunction_InvocationBatchRequest{
+				Target: &protocol.Address{
+					Namespace: "org.foo",
+					Type:      "greeter",
+					Id:        "0",
+				},
+				State: []*protocol.ToFunction_PersistedValue{
+					{
+						StateName: "seen",
+						StateValue: &protocol.TypedValue{
+							Typename: "io.statefun.types/int",
+							HasValue: false,
+							Value:    nil,
+						},
+					},
+				},
+				Invocations: []*protocol.ToFunction_Invocation{
+					{
+						Caller:   nil,
+						Argument: toTypedValue(StringType, "Hello"),
+					},
+				},
+			},
+		},
+	}
+
+	request, _ := proto.Marshal(&toFunction)
+
+	t.ReportAllocs()
+
+	for i := 0; i < t.N; i++ {
+		response, _ := http.Post(server.URL, "application/octet-stream", bytes.NewReader(request))
+		_ = response.Body.Close()
+	}
+}
+
 func toTypedValue(valueType SimpleType, value interface{}) *protocol.TypedValue {
 	buffer := bytes.Buffer{}
 	if err := valueType.Serialize(&buffer, value); err != nil {

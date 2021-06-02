@@ -146,7 +146,6 @@ func (h *handler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
 }
 
 func (h *handler) invoke(ctx context.Context, toFunction *protocol.ToFunction) (from *protocol.FromFunction, err error) {
-
 	batch := toFunction.GetInvocation()
 	self := addressFromInternal(batch.Target)
 	function, exists := h.module[self.FunctionType]
@@ -187,7 +186,7 @@ func (h *handler) invoke(ctx context.Context, toFunction *protocol.ToFunction) (
 			return nil, ctx.Err()
 		default:
 			sContext := statefunContext{
-				self:     *self,
+				self:     self,
 				storage:  storage,
 				response: response,
 			}
@@ -195,11 +194,11 @@ func (h *handler) invoke(ctx context.Context, toFunction *protocol.ToFunction) (
 			var cancel context.CancelFunc
 			sContext.Context, cancel = context.WithCancel(ctx)
 
-			var caller *Address
+			var caller Address
 			if invocation.Caller != nil {
 				caller = addressFromInternal(invocation.Caller)
 			}
-			sContext.caller = caller
+			sContext.caller = &caller
 			msg := Message{
 				target:     batch.Target,
 				typedValue: invocation.Argument,
